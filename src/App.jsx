@@ -16,16 +16,7 @@ const categories = [
   { name: 'Environment', color: '#278d88' },
 ];
 
-const demoReports = [
-  { id: 'ES-0241', title: 'Drainage needs clearing before heavy rain', category: 'Infrastructure', municipality: 'Borongan City', barangay: 'Brgy. Campesao', lat: 11.620, lng: 125.425, status: 'Under review', date: '2026-09-24', description: 'Residents report blocked roadside drainage near the public market. This community report has not been independently confirmed.' },
-  { id: 'ES-0240', title: 'Evacuation center needs roof repairs', category: 'Disaster resilience', municipality: 'Guiuan', barangay: 'Brgy. Sapao', lat: 11.038, lng: 125.727, status: 'Verified', date: '2026-09-21', description: 'A community volunteer submitted photos of leaks in the multipurpose evacuation building. A local reviewer marked the report verified.' },
-  { id: 'ES-0239', title: 'Water access point out of service', category: 'Health & services', municipality: 'Balangiga', barangay: 'Brgy. Poblacion 3', lat: 11.109, lng: 125.388, status: 'Submitted', date: '2026-09-18', description: 'Residents say the shared water point has not been working. This report is awaiting review.' },
-  { id: 'ES-0238', title: 'Learning materials requested for reading corner', category: 'Education & youth', municipality: 'Dolores', barangay: 'Brgy. 2', lat: 12.037, lng: 125.482, status: 'Addressed', date: '2026-09-12', description: 'A youth group shared that donated books reached the community reading corner. Marked addressed in this illustrative dataset.' },
-  { id: 'ES-0237', title: 'Farm-to-market road difficult to pass', category: 'Livelihood', municipality: 'Taft', barangay: 'Brgy. San Rafael', lat: 11.904, lng: 125.416, status: 'Under review', date: '2026-09-08', description: 'Farmers report that a damaged road section slows produce transport. No official assessment is represented here.' },
-  { id: 'ES-0236', title: 'Community shoreline clean-up support needed', category: 'Environment', municipality: 'Salcedo', barangay: 'Brgy. Butig', lat: 11.149, lng: 125.664, status: 'Verified', date: '2026-09-03', description: 'A community organization documented accumulated waste along a shoreline and requested clean-up supplies.' },
-  { id: 'ES-0235', title: 'Streetlights reported out along the main road', category: 'Infrastructure', municipality: 'Llorente', barangay: 'Brgy. Cantaba', lat: 11.410, lng: 125.544, status: 'Submitted', date: '2026-08-27', description: 'Residents report several streetlights are not working. Awaiting review.' },
-  { id: 'ES-0234', title: 'Fishing families request cold storage access', category: 'Livelihood', municipality: 'Mercedes', barangay: 'Brgy. 2', lat: 11.067, lng: 125.692, status: 'Under review', date: '2026-08-19', description: 'A fisherfolk group requested information about shared cold storage options and local livelihood support.' },
-];
+const demoReports = [];
 
 const statuses = { Submitted: '#d39829', 'Under review': '#5483a6', Verified: '#438b64', Addressed: '#738078' };
 const municipalities = ['Arteche', 'Balangiga', 'Balangkayan', 'Borongan City', 'Can-avid', 'Dolores', 'General MacArthur', 'Giporlos', 'Guiuan', 'Hernani', 'Jipapad', 'Lawaan', 'Llorente', 'Maslog', 'Maydolong', 'Mercedes', 'Oras', 'Quinapondan', 'Salcedo', 'San Julian', 'San Policarpo', 'Sulat', 'Taft'];
@@ -125,17 +116,18 @@ function App() {
   function startPicking() { setPicking(true); setFormOpen(false); setNotice('Click the map to place the report pin.'); }
   function pickPoint(point) { setLocation({ lat: point.lat, lng: point.lng }); setPicking(false); setFormOpen(true); setNotice('Location added to the report.'); }
   function addReport(values) {
-    const report = { ...values, id: `ES-${String(242 + reports.length - demoReports.length).padStart(4, '0')}`, barangay: values.barangay.trim() || 'Barangay not specified', status: 'Submitted', date: new Date().toISOString().slice(0, 10) };
-    setReports((current) => [report, ...current]); setSelected(report); setFormOpen(false); setNotice('Report added to this demo session.');
+    const report = { ...values, id: `preview-${Date.now()}`, barangay: values.barangay.trim() || 'Barangay not specified', status: 'Submitted', date: new Date().toISOString().slice(0, 10) };
+    setReports((current) => [report, ...current]); setSelected(report); setFormOpen(false); setNotice('Preview only: this report is temporary and is not shared.');
   }
 
   return <main className="app-shell">
     <header className="topbar">
       <a className="brand" href="#top" aria-label="Eastern Samar Community Action Map home"><span className="brand-mark"><Compass size={21} /></span><span className="brand-copy"><strong>Eastern Samar</strong><span>COMMUNITY ACTION MAP</span></span></a>
       <div className="topbar-center"><i className="live-indicator" /> Province-wide view <span className="topbar-divider">/</span> <span>Community reports</span></div>
-      <div className="topbar-actions"><span className="demo-label"><i /> Demo dataset</span><button className="primary-button top-report-button" onClick={startReport}><Plus size={16} /> Report a concern</button><button className="icon-button mobile-menu" onClick={() => setPanelOpen((open) => !open)} aria-label="Toggle report panel"><Menu size={20} /></button></div>
+      <div className="topbar-actions"><span className="demo-label"><i /> Preview mode</span><button className="primary-button top-report-button" onClick={startReport}><Plus size={16} /> Report a concern</button><button className="icon-button mobile-menu" onClick={() => setPanelOpen((open) => !open)} aria-label="Toggle report panel"><Menu size={20} /></button></div>
     </header>
     <section className="dashboard-heading" id="top"><div className="heading-copy"><span className="eyebrow">SEE THE PROBLEMS. MAP THE NEEDS. MOBILIZE THE COMMUNITY.</span><h1>Community Action Map</h1><p>Reported needs and local action across Eastern Samar.</p></div><div className="heading-meta"><div className="privacy-note"><ShieldCheck size={16} /><span>Community-reported<br /><strong>not official findings</strong></span></div><button className="text-button" onClick={() => setNotice('Demo reports are illustrative only. Community submissions are not official findings until reviewed by an authorized moderator.')}><CircleHelp size={16} /> About this map</button></div></section>
+    <div className="connection-banner" role="note"><ShieldCheck size={16} /><span><strong>Preview only.</strong> Reports are not connected to a shared database yet. Anything submitted here is temporary and only visible in this browser session.</span></div>
     <section className="stats-strip" aria-label="Report summary">
       <div className="stat-item"><span className="stat-icon orange"><Activity size={17} /></span><div><span className="stat-value">{reports.length}</span><span className="stat-label">Community reports</span></div></div>
       <div className="stat-item"><span className="stat-icon green"><MapPin size={17} /></span><div><span className="stat-value">{placesWithReports.length}<small> / 23</small></span><span className="stat-label">Areas represented</span></div></div>
