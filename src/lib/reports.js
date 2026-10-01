@@ -75,7 +75,7 @@ export async function validateEvidenceFile(file) {
 }
 
 export async function fetchPublicReports() {
-  if (!supabase) throw new Error('The shared database is not configured.');
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('reports')
     .select(reportColumns)
@@ -89,15 +89,33 @@ export async function fetchPublicReports() {
   return (data ?? []).filter(isPubliclyVisible);
 }
 
-// A signed-in resident reading their own submissions. RLS (reports_read allows
-// reporter_id = auth.uid()) is what makes this safe; the extra columns are the
-// review outcome, which is granted only to authenticated clients.
+// A signed-in resident reading their own submissions.
+//
+// This deliberately does NOT use `.eq('reporter_id', userId)`. The initial
+// migration grants SELECT on public.reports one column at a time and reporter_id
+// is not in that list, and PostgreSQL checks SELECT privileges for columns named
+// in WHERE as well as in the select list. Filtering on reporter_id from the client
+// therefore fails with 42501 "permission denied for table reports" before RLS is
+// consulted -- a privilege error, which is why the message says "permission denied
+// for table" rather than the usual RLS empty result. my_reports() applies the
+// auth.uid() filter inside the database as the table owner instead, so the client
+// never has to name the column and only ever receives its own rows.
 export async function fetchMyReports(userId) {
   if (!supabase || !userId) return [];
+  const { data: own, error: rpcError } = await supabase.rpc('my_reports');
+  if (!rpcError) return own ?? [];
+
+  // Fallback for a project where the migration has not been applied yet, so a
+  // missing function cannot blank the whole platform. RLS (reports_read_owner_
+  // staff_or_public) already restricts a resident to their own rows plus the
+  // published ones, so asking for the unpublished slice returns exactly this
+  // caller's pending and rejected submissions -- and it only touches columns that
+  // are granted. A moderator sees every unpublished row here, which their review
+  // queue already shows them.
   const query = (columns) => supabase
     .from('reports')
     .select(columns)
-    .eq('reporter_id', userId)
+    .eq('is_public', false)
     .order('created_at', { ascending: false })
     .limit(100);
   let { data, error } = await query(`${reportColumns},decision_note,reviewed_at`);
@@ -114,7 +132,7 @@ export async function fetchMyReports(userId) {
 // for a moderator is the whole table (pending ones included) and for a resident is
 // nothing beyond their own rows.
 export async function fetchReports() {
-  if (!supabase) throw new Error('The shared database is not configured.');
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('reports')
     .select(reportColumns)
@@ -125,7 +143,7 @@ export async function fetchReports() {
 }
 
 export async function fetchReportCategories() {
-  if (!supabase) throw new Error('The shared database is not configured.');
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('report_categories')
     .select('slug,name,sort_order')
@@ -147,7 +165,7 @@ export async function fetchProfile(userId) {
 }
 
 export async function fetchProfiles() {
-  if (!supabase) throw new Error('The shared database is not configured.');
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('profiles')
     .select('id,display_name,role,created_at')
@@ -157,7 +175,7 @@ export async function fetchProfiles() {
 }
 
 export async function fetchEvidence(reportId) {
-  if (!supabase) throw new Error('The shared database is not configured.');
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('report_evidence')
     .select('id,object_path,content_type,byte_size,created_at')
@@ -172,6 +190,23 @@ export async function fetchEvidence(reportId) {
     return { ...item, url: signed.signedUrl };
   }));
   return evidence;
+}
+
+export async function fetchAIReview(reportId) {
+  if (!supabase) return { run: null, flags: [] };
+  const [runResult, flagResult] = await Promise.all([
+    supabase.from('ai_review_runs')
+      .select('status,model_name,checked_at')
+      .eq('report_id', reportId)
+      .maybeSingle(),
+    supabase.from('ai_review_flags')
+      .select('id,flag_type,confidence,explanation,model_name,created_at')
+      .eq('report_id', reportId)
+      .order('created_at'),
+  ]);
+  if (runResult.error) throw runResult.error;
+  if (flagResult.error) throw flagResult.error;
+  return { run: runResult.data ?? null, flags: flagResult.data ?? [] };
 }
 
 export async function createReport(values, userId) {
@@ -198,14 +233,14 @@ export async function createReport(values, userId) {
     .single();
   if (error) throw error;
 
-  let warning = '';
+  const warnings = [];
   if (values.location) {
     const { error: locationError } = await supabase.from('report_private_locations').insert({
       report_id: report.id,
       latitude: values.location.lat,
       longitude: values.location.lng,
     });
-    if (locationError) warning = 'Report saved with an approximate public location; exact location storage needs moderator setup.';
+    if (locationError) warnings.push('Report saved with an approximate public location; exact location storage needs moderator setup.');
   }
 
   if (values.evidence) {
@@ -225,11 +260,22 @@ export async function createReport(values, userId) {
       });
       if (metadataError) throw metadataError;
     } catch {
-      warning = 'Report saved, but the evidence upload failed. You can retry from your account.';
+      warnings.push('Report saved, but the evidence upload failed. You can retry from your account.');
     }
   }
 
-  return { report, warning };
+  try {
+    const { data: screening, error: screeningError } = await supabase.functions.invoke('analyze-report', {
+      body: { reportId: report.id },
+    });
+    if (screeningError || screening?.status !== 'completed') {
+      warnings.push('Automated screening is unavailable; your report remains pending human review.');
+    }
+  } catch {
+    warnings.push('Automated screening is unavailable; your report remains pending human review.');
+  }
+
+  return { report, warning: warnings.join(' ') };
 }
 
 export async function moderateReport({ reportId, status, priority, note, residentNote }) {

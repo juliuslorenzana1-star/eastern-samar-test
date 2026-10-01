@@ -119,3 +119,80 @@ grant execute on function public.moderate_report(uuid, public.report_status, pub
 -- decision_note and reviewed_at stay readable (RLS decides who); reviewed_by is
 -- deliberately not granted so a moderator account id is never returned to a client.
 grant select (decision_note, reviewed_at) on public.reports to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Fix for "permission denied for table reports" for a signed-in resident
+-- ---------------------------------------------------------------------------
+-- The initial migration grants SELECT on public.reports column by column:
+--   grant select (id, title, description, category_slug, municipality, barangay,
+--     latitude, longitude, incident_at, needed_by, priority, status, is_public,
+--     created_at, updated_at, verified_at, resolved_at) on public.reports to anon, authenticated;
+-- reporter_id is NOT in that list. PostgreSQL enforces SELECT privileges on
+-- columns used in WHERE too, so a client-side filter such as
+--   GET /rest/v1/reports?reporter_id=eq.<uid>&select=...
+-- is rejected with 42501 "permission denied for table reports" before RLS ever
+-- runs. That is a privilege error, not a policy error, which is why no policy
+-- change can fix it.
+--
+-- This function does the same job inside the database: it runs as the table owner
+-- (so the missing column grant is irrelevant) and applies the auth.uid() filter
+-- itself, so a client never has to name reporter_id. It returns exactly the
+-- caller's own rows and nothing else.
+create or replace function public.my_reports()
+returns table (
+  id uuid,
+  title text,
+  description text,
+  category_slug text,
+  municipality text,
+  barangay text,
+  latitude double precision,
+  longitude double precision,
+  incident_at timestamptz,
+  needed_by date,
+  priority public.report_priority,
+  status public.report_status,
+  is_public boolean,
+  created_at timestamptz,
+  updated_at timestamptz,
+  verified_at timestamptz,
+  resolved_at timestamptz,
+  decision_note text,
+  reviewed_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select r.id, r.title, r.description, r.category_slug, r.municipality, r.barangay,
+         r.latitude, r.longitude, r.incident_at, r.needed_by,
+         r.priority, r.status, r.is_public,
+         r.created_at, r.updated_at, r.verified_at, r.resolved_at,
+         r.decision_note, r.reviewed_at
+  from public.reports r
+  where r.reporter_id = auth.uid()
+  order by r.created_at desc
+  limit 100;
+$$;
+
+comment on function public.my_reports() is 'Returns the signed-in caller''s own reports, including the resident-facing review reason. Filtered by auth.uid() and runs as the table owner so the column-level SELECT grant on reporter_id is not needed.';
+
+revoke all on function public.my_reports() from public, anon;
+grant execute on function public.my_reports() to authenticated;
+
+-- Bridge for the bundle that is already deployed: that build still asks the
+-- database for reporter_id, so it keeps failing with 42501 until this grant
+-- exists. The exposure is limited: RLS (reports_read_owner_staff_or_public) still
+-- decides which ROWS a caller can see, and this only reveals the reporter's UUID
+-- for rows they may already read -- their own reports plus published ones. No
+-- name, email, or phone is reachable through it. Once the build that calls
+-- public.my_reports() is live, this grant can be withdrawn with:
+--   revoke select (reporter_id) on public.reports from authenticated;
+grant select (reporter_id) on public.reports to authenticated;
+
+-- Make the running PostgREST instance pick up the new columns and the new
+-- function at once. Without this, the API can keep answering "Could not find the
+-- 'decision_note' column" (PGRST202/204) against its cached schema for a while
+-- even though the SQL above has already committed.
+notify pgrst, 'reload schema';

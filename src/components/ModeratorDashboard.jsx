@@ -9,7 +9,37 @@ function Metric({ label, value, icon: Icon, tone = 'green' }) {
   return <div className="review-metric"><span className={`review-metric-icon ${tone}`}><Icon size={16} /></span><span><strong>{value}</strong><small>{label}</small></span></div>;
 }
 
-export default function ModeratorDashboard({ reports, categories, profiles, isAdmin, onModerate, onChangeRole, onLoadEvidence }) {
+function ScreeningAdvisory({ loading, error, review }) {
+  if (loading) return <p>Loading screening record…</p>;
+  if (error) return <p>Screening status could not be loaded. Continue with human review.</p>;
+
+  const flags = review?.flags ?? [];
+  const status = review?.run?.status;
+  const message = status === 'pending'
+    ? 'Screening is still processing. Human review is required.'
+    : status === 'unavailable'
+      ? 'Screening was unavailable for this report. Human review is required.'
+      : status === 'failed'
+        ? 'Screening failed. Any saved flags remain advisory; human review is required.'
+        : status === 'completed' && !flags.length
+          ? 'Screening returned no flags. This does not verify the report.'
+          : status === 'completed'
+            ? 'Screening completed. Flags are advisory and do not verify the report.'
+            : 'No screening record is available. Human review is required.';
+
+  return <>
+    <p>{message}</p>
+    {flags.length > 0 && <ul className="ai-review-flags">{flags.map((flag) => (
+      <li key={flag.id}>
+        <strong>{formatStatus(flag.flag_type)}</strong>
+        {flag.confidence !== null && <small>Model confidence estimate: {Math.round(flag.confidence * 100)}%</small>}
+        <p>{flag.explanation}</p>
+      </li>
+    ))}</ul>}
+  </>;
+}
+
+export default function ModeratorDashboard({ reports, categories, profiles, isAdmin, onModerate, onChangeRole, onLoadEvidence, onLoadAIReview }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
@@ -21,6 +51,9 @@ export default function ModeratorDashboard({ reports, categories, profiles, isAd
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [evidence, setEvidence] = useState([]);
+  const [aiReview, setAIReview] = useState(null);
+  const [aiReviewLoading, setAIReviewLoading] = useState(false);
+  const [aiReviewError, setAIReviewError] = useState(false);
   const [currentTime] = useState(() => Date.now());
 
   const categoryNames = Object.fromEntries(categories.map((category) => [category.slug, category.name]));
@@ -40,11 +73,21 @@ export default function ModeratorDashboard({ reports, categories, profiles, isAd
     setResidentNote('');
     setMessage('');
     setEvidence([]);
+    setAIReview(null);
+    setAIReviewLoading(true);
+    setAIReviewError(false);
     try {
       const files = await onLoadEvidence(report.id);
       setEvidence(files ?? []);
     } catch {
       setMessage('Evidence could not be loaded. Check storage permissions.');
+    }
+    try {
+      setAIReview(await onLoadAIReview(report.id));
+    } catch {
+      setAIReviewError(true);
+    } finally {
+      setAIReviewLoading(false);
     }
   }
 
@@ -113,6 +156,10 @@ export default function ModeratorDashboard({ reports, categories, profiles, isAd
         <p className="review-description">{selected.description}</p>
         {selected.needed_by && <p className="review-needed-by">Needed by {new Date(`${selected.needed_by}T12:00:00`).toLocaleDateString('en-PH')}</p>}
         {evidence.length > 0 && <div className="evidence-gallery">{evidence.map((item) => <a href={item.url} target="_blank" rel="noreferrer" key={item.id}><img src={item.url} alt="Private evidence attached to this report" /></a>)}</div>}
+        <section className="ai-review-panel" aria-label="Automated screening advisory">
+          <div className="ai-review-heading"><strong>Automated screening</strong><span>Advisory only · human decision required</span></div>
+          <ScreeningAdvisory loading={aiReviewLoading} error={aiReviewError} review={aiReview} />
+        </section>
         <form onSubmit={saveReview}>
           <div className="form-row">
             <label className="field-label">Set status<select value={nextStatus} onChange={(event) => setNextStatus(event.target.value)}>{reportStatuses.map((status) => <option key={status} value={status}>{formatStatus(status)}</option>)}</select></label>
@@ -121,7 +168,7 @@ export default function ModeratorDashboard({ reports, categories, profiles, isAd
           <label className="field-label">Reason for the reporter {needsResidentReason && <span className="optional-label">Required</span>}{!needsResidentReason && <span className="optional-label">Optional</span>}<textarea rows="2" maxLength="600" required={needsResidentReason} value={residentNote} onChange={(event) => setResidentNote(event.target.value)} placeholder={needsResidentReason ? 'Only the reporter sees this reason.' : 'An optional note the reporter will see with the decision.'} /></label>
           <label className="field-label">Internal moderation note <span className="optional-label">Private to staff</span><textarea rows="3" maxLength="4000" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Visible only to authorized moderators." /></label>
           {message && <p className={message === 'Review decision saved.' ? 'form-success' : 'form-error'} role="status">{message}</p>}
-          <div className="modal-foot"><span>AI flags, if added, are advisory only.</span><button className="primary-button" type="submit" disabled={busy}>{busy ? 'Saving…' : <><Check size={16} /> Save review</>}</button></div>
+          <div className="modal-foot"><span>Automated flags never approve or publish a report.</span><button className="primary-button" type="submit" disabled={busy}>{busy ? 'Saving…' : <><Check size={16} /> Save review</>}</button></div>
         </form>
       </section>
     </div>}

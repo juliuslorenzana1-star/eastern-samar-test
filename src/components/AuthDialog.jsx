@@ -10,6 +10,22 @@ const copy = {
 
 const authRedirectUrl = new URL(import.meta.env.BASE_URL, window.location.href).href;
 
+function authErrorMessage(error) {
+  const code = String(error?.code ?? '').toLowerCase();
+  const message = String(error?.message ?? '').toLowerCase();
+  if (code === 'invalid_credentials' || code === 'user_not_found' || message.includes('invalid login credentials')) {
+    return 'The email or password is incorrect.';
+  }
+  if (code === 'email_not_confirmed' || message.includes('email not confirmed')) {
+    return 'Confirm your email address before signing in.';
+  }
+  if (error?.status === 429) return 'Too many attempts. Wait a few minutes and try again.';
+  if (error?.name === 'AuthRetryableFetchError' || message.includes('fetch') || message.includes('network')) {
+    return 'The account service could not be reached. Check your connection and try again.';
+  }
+  return 'We could not complete that account request. Check your details and try again.';
+}
+
 export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose, onNotice }) {
   const [mode, setMode] = useState(initialMode);
   const [displayName, setDisplayName] = useState('');
@@ -60,7 +76,7 @@ export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose,
         onClose();
       }
     } catch (authError) {
-      setError(authError.message || 'We could not complete that request. Please try again.');
+      setError(authErrorMessage(authError));
     } finally {
       setBusy(false);
     }

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MapPin, Plus, ShieldCheck, X } from 'lucide-react';
-
-const municipalities = ['Arteche', 'Balangiga', 'Balangkayan', 'Borongan City', 'Can-avid', 'Dolores', 'General MacArthur', 'Giporlos', 'Guiuan', 'Hernani', 'Jipapad', 'Lawaan', 'Llorente', 'Maslog', 'Maydolong', 'Mercedes', 'Oras', 'Quinapondan', 'Salcedo', 'San Julian', 'San Policarpo', 'Sulat', 'Taft'];
+import { MUNICIPALITIES as municipalities } from '../lib/place.js';
 
 export default function ReportDialog({ categories, location, hidden, onClose, onPickLocation, onSubmit }) {
   const [form, setForm] = useState({ title: '', category: '', municipality: '', barangay: '', description: '', incidentAt: '', neededBy: '', priority: 'normal' });
@@ -56,7 +55,7 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
           <div><span className="eyebrow">COMMUNITY REPORT</span><h2 id="report-form-title">Add a concern</h2></div>
           <button className="icon-button" onClick={onClose} aria-label="Close report form"><X size={19} /></button>
         </div>
-        <p className="modal-intro">Reports begin private and pending review. Don’t include names or details that could identify vulnerable people.</p>
+        <p className="modal-intro">Reports begin private and pending review. Don’t include names or details that could identify vulnerable people. When configured, title and description may be screened by an external service; its flags are advisory and a human moderator decides publication.</p>
         <form onSubmit={submit}>
           <label className="field-label">Concern title
             <input name="title" maxLength="120" minLength="6" required value={form.title} onChange={update} placeholder="What needs attention?" />
