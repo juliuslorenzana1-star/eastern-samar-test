@@ -25,10 +25,16 @@ New users register as residents and must confirm their email. The first administ
 
 The function verifies the signed-in reporter owns a still-pending report and sends only its title, description, and category to the configured provider. It stores advisory flags/status for authorized moderators. Missing provider configuration or a provider failure does not block submission; the report remains `pending_review` and unpublished. AI output never approves, verifies, or publishes a report.
 
+### Volunteer activities
+
+Moderators and administrators can publish standalone Eastern Samar activities or link an activity to an approved public report from the moderation desk. They can collect the schedule, municipality/barangay, optional map coordinates, skills, tasks, supplies, and capacity, then review registrations, record attendance/hours, complete activities, or cancel them. Residents browse and filter public activities, sign in to join, cancel their own registration while it is still registered, and see their participation and recorded impact under **My Activities**. Registration rows are private; public totals are returned by aggregate database functions.
+
+Apply `supabase/migrations/202610010002_report_linked_volunteer_opportunities.sql` and then `supabase/migrations/202610010003_volunteer_participation.sql` before using the expanded volunteer experience. The new migration preserves existing opportunities and imports legacy signups as registrations without assuming attendance or awarding hours. Join/capacity checks and attendance authorization run in database functions under the existing resident and moderator/admin roles.
+
 ## Security and product limits
 
 - The report form and moderator dashboard are connected to Supabase. Moderation decisions are enforced through a staff-checked database function; internal notes and evidence remain private.
 - Evidence is uploaded to a private bucket with client-side signature/type/size checks and storage limits. A server-side image inspection/processing function is not implemented.
 - AI screening requires deployment and server-side provider secrets; without them it is marked unavailable and human moderation continues.
-- Volunteer listings/signups use the existing RLS-protected tables. Notifications delivery and project management UI remain future work.
+- Volunteer listings/signups use RLS-protected tables. Only staff can publish opportunities, only approved public reports can be linked, and each resident can manage only their own signup. Notifications delivery and project management UI remain future work.
 - GitHub Pages hosts the frontend; Supabase provides the separate Auth, database, and storage services.

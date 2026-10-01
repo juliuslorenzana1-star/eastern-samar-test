@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowDownUp, ArrowRight, CalendarDays, Check, ChevronDown,
   CircleHelp, Compass, Filter, HeartPulse, Inbox, Layers3, LogOut, MapPin,
@@ -22,6 +22,11 @@ import {
   MUNICIPALITIES, barangayCoverage, categoryCounts, categoryVisual, hasCoordinates,
   municipalityCoverage, placeLine, placeOptions, statusColor, withinDays,
 } from './lib/place.js';
+import {
+  createVolunteerOpportunity, fetchOpportunityRegistrations, fetchVolunteerManagementOverview,
+  fetchVolunteerOpportunities, fetchVolunteerSignupCounts, setVolunteerRegistrationOpen,
+  updateVolunteerOpportunity, updateVolunteerOpportunityStatus, updateVolunteerRegistration,
+} from './lib/volunteers.js';
 import {
   applyThemeMode, readStoredThemeMode, resolveThemeMode, storeThemeMode, watchSystemTheme,
 } from './lib/theme.js';
@@ -83,14 +88,32 @@ function App() {
   const [themeMode, setThemeMode] = useState(() => readStoredThemeMode());
   const [systemTick, setSystemTick] = useState(0);
   const [focus, setFocus] = useState(null);
+  const [volunteerMapData, setVolunteerMapData] = useState({ opportunities: [], signupCounts: {} });
+  const [volunteerInitial, setVolunteerInitial] = useState(null);
   const sessionUserId = session?.user?.id;
   const isStaff = profile?.role === 'moderator' || profile?.role === 'admin';
+  const updateVolunteerMapData = useCallback((opportunities, signupCounts) => {
+    setVolunteerMapData({ opportunities, signupCounts });
+  }, []);
+  const clearVolunteerInitial = useCallback(() => setVolunteerInitial(null), []);
   // Resolved once per render: a "system" preference re-resolves whenever the
   // operating system reports a change (see systemTick below).
   const theme = resolveThemeMode(themeMode);
 
   useEffect(() => watchSystemTheme(() => setSystemTick((tick) => tick + 1)), []);
   useEffect(() => { applyThemeMode(themeMode); }, [themeMode, systemTick]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return undefined;
+    let active = true;
+    fetchVolunteerOpportunities()
+      .then(async (opportunities) => {
+        const signupCounts = await fetchVolunteerSignupCounts(opportunities.map(({ id }) => id));
+        if (active) setVolunteerMapData({ opportunities, signupCounts });
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   function chooseThemeMode(mode) {
     storeThemeMode(mode);
@@ -289,22 +312,34 @@ function App() {
         <button className="outline-button volunteer-nav-button" onClick={() => setView(view === 'volunteers' ? 'map' : 'volunteers')} aria-label={view === 'volunteers' ? 'Return to community map' : 'Open volunteer opportunities'} title={view === 'volunteers' ? 'Community map' : 'Volunteer opportunities'}>{view === 'volunteers' ? <Compass size={14} /> : <Users size={14} />}<span>{view === 'volunteers' ? 'Map' : 'Volunteers'}</span></button>
         {isStaff && <button className="outline-button review-nav-button" onClick={() => setView(view === 'review' ? 'map' : 'review')}>{view === 'review' ? 'Community map' : 'Review queue'}</button>}
         {session?.user ? <><span className="account-label">{profile?.display_name || session.user.email}</span><button className="icon-button" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button></> : <button className="outline-button" onClick={() => { if (isSupabaseConfigured) { setAuthMode('sign-in'); setFormOpen(true); } else setNotice('Demo mode is active. Add Supabase keys to enable account sign-in and reporting.'); }}>Sign in</button>}
-        <button className="icon-button mobile-menu" onClick={() => setPanelOpen((open) => !open)} aria-label="Open report filters" title="Open report filters"><Menu size={20} /></button>
+        <button className="icon-button mobile-menu" onClick={() => view === 'volunteers' ? document.getElementById('volunteer-opportunities')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : setPanelOpen((open) => !open)} aria-label={view === 'volunteers' ? 'Find volunteer opportunities' : 'Open report filters'} title={view === 'volunteers' ? 'Find volunteer opportunities' : 'Open report filters'}><Menu size={20} /></button>
         <button className="primary-button top-report-button" onClick={startReport}><Plus size={16} /><span className="report-label-wide">Report a concern</span><span className="report-label-compact">Report</span></button>
       </div>
     </header>
-    <section className="dashboard-heading" id="top"><div className="heading-copy"><span className="eyebrow">EASTERN SAMAR · COMMUNITY ACTION MAP</span><h1>{view === 'review' ? 'Review queue' : 'Eastern Samar Community Action Map'}</h1><p>{view === 'review' ? 'Review submissions and coordinate next steps.' : 'Local action, reported needs, and community updates across Eastern Samar municipalities and barangays.'}</p></div><div className="heading-meta"><div className="privacy-note"><ShieldCheck size={16} /><span>Community-reported<br /><strong>not official findings</strong></span></div><button className="text-button" onClick={() => setNotice('Public reports are visible only after authorized staff approve them. Private exact locations and evidence are restricted by database policies.')}><CircleHelp size={16} /> About this map</button></div></section>
+    <section className="dashboard-heading" id="top"><div className="heading-copy"><span className="eyebrow">EASTERN SAMAR · COMMUNITY ACTION MAP</span><h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'review' ? 'Review queue' : view === 'volunteers' ? 'Volunteer' : 'Eastern Samar Community Action Map'}</h1><p>{view === 'review' ? 'Review submissions and coordinate next steps.' : view === 'volunteers' ? 'Turn community needs into community action. Find local activities, lend your skills, and help make Eastern Samar stronger.' : 'Local action, reported needs, and community updates across Eastern Samar municipalities and barangays.'}</p></div>{view !== 'volunteers' && <div className="heading-meta"><div className="privacy-note"><ShieldCheck size={16} /><span>Community-reported<br /><strong>not official findings</strong></span></div><button className="text-button" onClick={() => setNotice('Public reports are visible only after authorized staff approve them. Private exact locations and evidence are restricted by database policies.')}><CircleHelp size={16} /> About this map</button></div>}</section>
     {loadError && <div className="app-error" role="alert"><strong>Unable to load the shared platform.</strong><span>{loadError}</span><button className="outline-button" onClick={() => window.location.reload()}>Try again</button></div>}
     {view === 'volunteers' ? <VolunteerBoard
       configured={isSupabaseConfigured}
       userId={sessionUserId}
-      onSignIn={() => {
+      theme={theme}
+      reports={reports}
+      onSignIn={(mode = 'sign-in') => {
         if (!isSupabaseConfigured) { setNotice('Account access is unavailable while the shared database is disconnected.'); return; }
-        setAuthMode('sign-in');
+        setAuthMode(mode);
         setFormOpen(true);
       }}
       onMap={() => setView('map')}
-    /> : view === 'review' && isStaff ? <ModeratorDashboard reports={queue} categories={categories} profiles={profiles} isAdmin={profile?.role === 'admin'} onModerate={reviewReport} onChangeRole={changeRole} onLoadEvidence={async (reportId) => { const result = await fetchEvidence(reportId); return result; }} onLoadAIReview={fetchAIReview} /> : <>
+      onOpenReport={(report) => { setView('map'); openReport(report); }}
+      onDataLoaded={updateVolunteerMapData}
+      onShowOnMap={(opportunity) => {
+        setSelected(null);
+        if (hasCoordinates(opportunity)) setFocus({ latlng: [Number(opportunity.latitude), Number(opportunity.longitude)], zoom: 14, nonce: Date.now() });
+        setView('map');
+      }}
+      initialOpportunityId={volunteerInitial?.id}
+      initialAction={volunteerInitial?.action}
+      onOpportunityOpened={clearVolunteerInitial}
+    /> : view === 'review' && isStaff ? <ModeratorDashboard reports={queue} categories={categories} profiles={profiles} isAdmin={profile?.role === 'admin'} onModerate={reviewReport} onChangeRole={changeRole} onLoadEvidence={async (reportId) => { const result = await fetchEvidence(reportId); return result; }} onLoadAIReview={fetchAIReview} onCreateVolunteerOpportunity={createVolunteerOpportunity} onUpdateVolunteerOpportunity={updateVolunteerOpportunity} onLoadVolunteerManagement={fetchVolunteerManagementOverview} onLoadVolunteerRegistrations={fetchOpportunityRegistrations} onUpdateVolunteerRegistration={updateVolunteerRegistration} onUpdateVolunteerOpportunityStatus={updateVolunteerOpportunityStatus} onSetVolunteerRegistrationOpen={setVolunteerRegistrationOpen} /> : <>
       <section className={`workspace${panelOpen ? ' panel-open' : ''}`}>
         <aside className="report-panel">
           <div className="panel-heading"><div><span className="eyebrow">COMMUNITY PULSE</span><h2>Reported concerns <span>{filtered.length}</span></h2></div><button className="icon-button mobile-close" onClick={() => setPanelOpen(false)} aria-label="Close report panel"><X size={18} /></button></div>
@@ -342,6 +377,12 @@ function App() {
           pickLocation={location}
           onStartReport={startReport}
           mappedCount={mappedCount}
+          volunteerOpportunities={volunteerMapData.opportunities}
+          volunteerSignupCounts={volunteerMapData.signupCounts}
+          onVolunteerOpen={(opportunity, action) => {
+            setVolunteerInitial({ id: opportunity.id, action });
+            setView('volunteers');
+          }}
           detail={selected ? <ReportDetailCard
             report={selected}
             categoryName={categoryNames[selected.category_slug] ?? selected.category_slug}

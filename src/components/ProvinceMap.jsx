@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GeoJSON, MapContainer, Marker, Polygon, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { GeoJSON, MapContainer, Marker, Polygon, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { divIcon } from 'leaflet';
-import { Compass, Crosshair, Layers3, Minus, Plus } from 'lucide-react';
+import { CalendarDays, Compass, Crosshair, Layers3, MapPin, Minus, Plus, Users } from 'lucide-react';
 import easternSamarBoundary from '../assets/eastern-samar-boundary.json';
 import {
-  BASEMAPS, PROVINCE, categoryGlyphMarkup, categoryVisual, isReviewed,
+  BASEMAPS, PROVINCE, categoryGlyphMarkup, categoryVisual, hasCoordinates, isReviewed,
 } from '../lib/place.js';
 
 // A marker is a category chip with a tail: colour + glyph carry the category,
@@ -29,6 +29,16 @@ function pickIcon(theme) {
     html: `<span class="report-marker is-pick" style="--marker-color:${theme === 'dark' ? '#f2c65c' : '#a08326'}"><i class="marker-state"></i></span>`,
     iconSize: [32, 40],
     iconAnchor: [16, 33],
+  });
+}
+
+function volunteerIcon(opportunity, theme) {
+  const { color } = categoryVisual(opportunity.category, theme);
+  return divIcon({
+    className: 'volunteer-marker-shell',
+    html: `<span class="volunteer-map-marker" style="--marker-color:${color}">${categoryGlyphMarkup(opportunity.category)}<i></i></span>`,
+    iconSize: [34, 42],
+    iconAnchor: [17, 35],
   });
 }
 
@@ -62,6 +72,7 @@ function ClickCapture({ enabled, onPick }) {
 export default function ProvinceMap({
   reports, theme, categories, counts, category, onCategory, area, selected, onSelect,
   focus, picking, onPick, onCancelPick, pickLocation, onStartReport, detail, mappedCount,
+  volunteerOpportunities = [], volunteerSignupCounts = {}, onVolunteerOpen,
 }) {
   const mapRef = useRef(null);
   const [legendOpen, setLegendOpen] = useState(true);
@@ -79,6 +90,9 @@ export default function ProvinceMap({
   const visible = useMemo(() => reports.filter((report) => (
     Number.isFinite(Number(report.latitude)) && Number.isFinite(Number(report.longitude))
   )), [reports]);
+  const visibleVolunteers = useMemo(() => volunteerOpportunities.filter((opportunity) => (
+    hasCoordinates(opportunity) && !['cancelled', 'completed'].includes(opportunity.status)
+  )), [volunteerOpportunities]);
 
   function nudge(action) {
     const instance = mapRef.current;
@@ -99,14 +113,14 @@ export default function ProvinceMap({
           </span>
         </div>
         <div className="map-top-actions">
-          <span className="map-count"><i /> {mappedCount} shown</span>
+          <span className="map-count"><i /> {mappedCount} reports · {visibleVolunteers.length} activities</span>
           <button className="map-tool-button" type="button" onClick={onStartReport}><Plus size={14} /> Report</button>
         </div>
       </div>
 
       <div className="map-hud" aria-live="polite">
         <span className="map-hud-badge">Eastern Samar</span>
-        <span>{reports.length ? `${reports.length} mapped actions in view` : 'Demo mode · live provincial map ready'}</span>
+        <span>{reports.length || visibleVolunteers.length ? `${reports.length} concerns · ${visibleVolunteers.length} volunteer activities` : 'Demo mode · live provincial map ready'}</span>
       </div>
 
       <MapContainer
@@ -164,6 +178,26 @@ export default function ProvinceMap({
             eventHandlers={{ click: () => onSelect(report) }}
           />
         ))}
+        {visibleVolunteers.map((opportunity) => {
+          const count = volunteerSignupCounts[opportunity.id] ?? 0;
+          const remaining = opportunity.capacity ? Math.max(0, opportunity.capacity - count) : null;
+          return <Marker
+            key={`volunteer-${opportunity.id}`}
+            position={[Number(opportunity.latitude), Number(opportunity.longitude)]}
+            icon={volunteerIcon(opportunity, theme)}
+          >
+            <Popup className="volunteer-map-popup">
+              <div className="volunteer-popup-content">
+                <span className="eyebrow">VOLUNTEER ACTIVITY</span>
+                <strong>{opportunity.title}</strong>
+                <span><MapPin size={12} />{[opportunity.barangay, opportunity.municipality].filter(Boolean).join(', ') || PROVINCE.name}</span>
+                <span><CalendarDays size={12} />{opportunity.starts_at ? new Date(opportunity.starts_at).toLocaleDateString('en-PH', { dateStyle: 'medium' }) : 'Schedule to be announced'}</span>
+                <span><Users size={12} />{remaining === null ? `${count} joined` : `${remaining} volunteer${remaining === 1 ? '' : 's'} needed`}</span>
+                <div><button type="button" onClick={() => onVolunteerOpen?.(opportunity, false)}>View details</button><button type="button" onClick={() => onVolunteerOpen?.(opportunity, true)}>Join</button></div>
+              </div>
+            </Popup>
+          </Marker>;
+        })}
       </MapContainer>
 
       <div className="map-controls" role="group" aria-label="Map controls">

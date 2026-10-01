@@ -81,6 +81,10 @@ export const CATEGORY_META = {
     light: '#a3357f', dark: '#ff83cf',
     glyph: ['M12 9.6a2.7 2.7 0 1 0 0-5.4 2.7 2.7 0 0 0 0 5.4z', 'M6.4 20.4a5.6 5.6 0 0 1 11.2 0'],
   },
+  livelihood: {
+    light: '#8a6c25', dark: '#e8c66c',
+    glyph: ['M3.5 10.5 12 5l8.5 5.5', 'M5 10v9h14v-9', 'M9 19v-5h6v5', 'M8 10h.01M12 10h.01M16 10h.01'],
+  },
   other: {
     light: '#64757f', dark: '#a9bcc7',
     glyph: ['M12 4.2a7.8 7.8 0 1 0 0 15.6 7.8 7.8 0 0 0 0-15.6z', 'M12 10.4v5.4M12 7.4h.01'],
@@ -142,7 +146,11 @@ export function placeLine(report) {
 }
 
 export function hasCoordinates(report) {
-  return Number.isFinite(Number(report?.latitude)) && Number.isFinite(Number(report?.longitude));
+  const latitude = report?.latitude;
+  const longitude = report?.longitude;
+  return latitude !== null && latitude !== undefined && latitude !== ''
+    && longitude !== null && longitude !== undefined && longitude !== ''
+    && Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude));
 }
 
 export function centroid(reports) {
