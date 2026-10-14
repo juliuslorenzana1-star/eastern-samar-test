@@ -157,11 +157,31 @@ export async function fetchProfile(userId) {
   if (!supabase || !userId) return null;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id,display_name,role')
+    .select('id,display_name,role,show_on_leaderboard')
     .eq('id', userId)
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function sendEmailNotification(payload) {
+  if (!supabase) return { ok: false, skipped: true, reason: 'supabase_unavailable' };
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email-notification', {
+      body: payload,
+    });
+    if (error) {
+      console.warn('Email notification failed.', error);
+      return { ok: false, skipped: false, error };
+    }
+    if (data?.skipped) {
+      return { ok: false, skipped: true, reason: data.reason || 'email_not_configured' };
+    }
+    return { ok: data?.accepted === true || data?.status === 'accepted', data };
+  } catch (error) {
+    console.warn('Email notification failed.', error);
+    return { ok: false, skipped: false, error };
+  }
 }
 
 export async function fetchProfiles() {
@@ -262,6 +282,21 @@ export async function createReport(values, userId) {
     } catch {
       warnings.push('Report saved, but the evidence upload failed. You can retry from your account.');
     }
+  }
+
+  try {
+    const emailResult = await sendEmailNotification({
+      type: 'report_submission',
+      report_id: report.id,
+      report_title: report.title,
+      municipality: report.municipality,
+      barangay: report.barangay,
+    });
+    if (!emailResult.ok) {
+      warnings.push('Report saved. A confirmation email could not be confirmed; check My submissions for your report.');
+    }
+  } catch {
+    warnings.push('Report submitted successfully. Your confirmation email may be delayed while the email service is being configured.');
   }
 
   try {

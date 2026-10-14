@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
   Activity, ArrowDownUp, ArrowRight, CalendarDays, Check, ChevronDown,
   CircleHelp, Compass, Filter, HeartPulse, Inbox, Layers3, LogOut, MapPin,
@@ -90,7 +90,28 @@ function App() {
   const [focus, setFocus] = useState(null);
   const [volunteerMapData, setVolunteerMapData] = useState({ opportunities: [], signupCounts: {} });
   const [volunteerInitial, setVolunteerInitial] = useState(null);
+  const [welcomeMessage, setWelcomeMessage] = useState('');
   const sessionUserId = session?.user?.id;
+  const openedEmailLink = useRef('');
+  const handleEmailLink = useEffectEvent(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash || openedEmailLink.current === hash) return;
+    const params = new URLSearchParams(hash);
+    const activityId = params.get('volunteer');
+    if (activityId && /^[0-9a-f-]{36}$/i.test(activityId)) {
+      openedEmailLink.current = hash;
+      setVolunteerInitial({ id: activityId, action: false });
+      setView('volunteers');
+    }
+    const submissionId = params.get('submission');
+    if (!submissionId) return;
+    if (!sessionUserId) { setNotice('Sign in to view your submitted concern.'); return; }
+    const report = myReports.find(({ id }) => id === submissionId);
+    if (!report) return;
+    openedEmailLink.current = hash;
+    setView('map'); setShowSubmissions(true); setPanelOpen(true); setSelected(report);
+  });
+  useEffect(() => { handleEmailLink(); }, [myReports, sessionUserId]);
   const isStaff = profile?.role === 'moderator' || profile?.role === 'admin';
   const updateVolunteerMapData = useCallback((opportunities, signupCounts) => {
     setVolunteerMapData({ opportunities, signupCounts });
@@ -102,6 +123,12 @@ function App() {
 
   useEffect(() => watchSystemTheme(() => setSystemTick((tick) => tick + 1)), []);
   useEffect(() => { applyThemeMode(themeMode); }, [themeMode, systemTick]);
+
+  useEffect(() => {
+    if (!welcomeMessage) return undefined;
+    const timeoutId = window.setTimeout(() => setWelcomeMessage(''), 2600);
+    return () => window.clearTimeout(timeoutId);
+  }, [welcomeMessage]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return undefined;
@@ -136,6 +163,7 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       if (!nextSession) {
+        setWelcomeMessage('');
         setProfile(null);
         setProfiles([]);
         setMyReports([]);
@@ -203,10 +231,7 @@ function App() {
   const categoryNames = Object.fromEntries(categories.map((item) => [item.slug, item.name]));
   // Local figures are derived from the reports already in memory — no extra
   // queries, and nothing is padded with estimates.
-  const coverage = useMemo(() => municipalityCoverage(reports), [reports]);
   const places = useMemo(() => placeOptions(reports), [reports]);
-  const barangays = useMemo(() => barangayCoverage(reports), [reports]);
-  const thisWeek = useMemo(() => withinDays(reports, 7), [reports]);
   const categoryBase = useMemo(() => reports.filter((report) => {
     const days = dateRange === '7' ? 7 : dateRange === '30' ? 30 : dateRange === '90' ? 90 : null;
     const haystack = `${report.title} ${report.description} ${report.municipality} ${report.barangay ?? ''}`.toLowerCase();
@@ -232,8 +257,6 @@ function App() {
   // Staff counts come from the moderation queue. The public feed only ever holds
   // approved reports, so a review-stage number can never show up in public stats.
   const pending = queue.filter((report) => ['pending_review', 'under_review', 'needs_more_information'].includes(report.status)).length;
-  const resolved = reports.filter((report) => report.status === 'resolved').length;
-  const verified = reports.filter((report) => report.status === 'verified').length;
   const statusOptions = isStaff ? reportStatuses : publicReportStatuses;
   const submissionsLabel = myReports.length ? `My submissions (${myReports.length})` : 'My submissions';
   const listCountLabel = showSubmissions
@@ -302,7 +325,31 @@ function App() {
     }
   }
 
+  function navigate(destination) {
+    if (destination === 'report') { startReport(); return; }
+    if (destination === 'profile' && !sessionUserId) {
+      if (isSupabaseConfigured) { setAuthMode('sign-in'); setFormOpen(true); }
+      else setNotice('Account access is unavailable until the shared database is connected.');
+      return;
+    }
+    setView(['volunteers', 'review'].includes(destination) ? destination : 'map');
+    setShowSubmissions(destination === 'profile');
+    setPanelOpen(['reports', 'profile'].includes(destination));
+    window.requestAnimationFrame(() => {
+      const target = destination === 'impact' ? 'community-impact' : destination === 'reports' || destination === 'profile' ? 'community-reports' : 'explore-map';
+      document.getElementById(target)?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    });
+  }
+
+  async function welcomeAfterLogin(user) {
+    if (!user) return;
+    let name = '';
+    try { name = (await fetchProfile(user.id))?.display_name?.trim().split(/\s+/)[0] || ''; } catch { /* Use a neutral greeting when the profile is unavailable. */ }
+    setWelcomeMessage(name ? `Welcome back, ${name}!` : 'Welcome back!');
+  }
+
   return <main className="app-shell">
+    <a className="skip-link" href="#primary-navigation">Skip to navigation</a>
     <header className="topbar">
       <a className="brand" href="#top" aria-label="Eastern Samar Community Action Map home"><span className="brand-mark"><Compass size={21} /></span><span className="brand-copy"><strong>Eastern Samar</strong><span>COMMUNITY ACTION MAP</span></span></a>
       <div className="topbar-center"><i className="live-indicator" /> {area === 'all' ? 'Province-wide view' : area} <span className="topbar-divider">/</span> <span>{view === 'review' ? 'Moderation queue' : view === 'volunteers' ? 'Volunteer opportunities' : 'Community reports'}</span></div>
@@ -316,7 +363,24 @@ function App() {
         <button className="primary-button top-report-button" onClick={startReport}><Plus size={16} /><span className="report-label-wide">Report a concern</span><span className="report-label-compact">Report</span></button>
       </div>
     </header>
+    <nav className="primary-navigation" id="primary-navigation" aria-label="Community platform">
+      <button aria-current={view === 'map' && !showSubmissions ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={17} />Explore map</button>
+      <button onClick={() => navigate('reports')}><Inbox size={17} />Community reports</button>
+      <button onClick={() => navigate('report')}><Plus size={17} />Submit a concern</button>
+      <button aria-current={view === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={17} />Volunteer</button>
+      <button onClick={() => navigate('impact')}><Activity size={17} />Community impact</button>
+      <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={17} />My submissions</button>
+      {isStaff && <button aria-current={view === 'review' ? 'page' : undefined} onClick={() => navigate('review')}><Layers3 size={17} />Administration</button>}
+    </nav>
     <section className="dashboard-heading" id="top"><div className="heading-copy"><span className="eyebrow">EASTERN SAMAR · COMMUNITY ACTION MAP</span><h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'review' ? 'Review queue' : view === 'volunteers' ? 'Volunteer' : 'Eastern Samar Community Action Map'}</h1><p>{view === 'review' ? 'Review submissions and coordinate next steps.' : view === 'volunteers' ? 'Turn community needs into community action. Find local activities, lend your skills, and help make Eastern Samar stronger.' : 'Local action, reported needs, and community updates across Eastern Samar municipalities and barangays.'}</p></div>{view !== 'volunteers' && <div className="heading-meta"><div className="privacy-note"><ShieldCheck size={16} /><span>Community-reported<br /><strong>not official findings</strong></span></div><button className="text-button" onClick={() => setNotice('Public reports are visible only after authorized staff approve them. Private exact locations and evidence are restricted by database policies.')}><CircleHelp size={16} /> About this map</button></div>}</section>
+    {!session?.user && <section className="community-intro" aria-label="Eastern Samar project introduction">
+      <div>
+        <span className="eyebrow">BUILT FOR ESTEHANONS</span>
+        <h2>Built for Estehanons, by the community.</h2>
+      </div>
+      <p>From our barangays to our coastlines, the Eastern Samar Community Action Map helps neighbors raise concerns, volunteer, and support local action that protects our communities and helps fellow Estehanons.</p>
+      <small>Developed by Julius Lorenzana</small>
+    </section>}
     {loadError && <div className="app-error" role="alert"><strong>Unable to load the shared platform.</strong><span>{loadError}</span><button className="outline-button" onClick={() => window.location.reload()}>Try again</button></div>}
     {view === 'volunteers' ? <VolunteerBoard
       configured={isSupabaseConfigured}
@@ -341,7 +405,7 @@ function App() {
       onOpportunityOpened={clearVolunteerInitial}
     /> : view === 'review' && isStaff ? <ModeratorDashboard reports={queue} categories={categories} profiles={profiles} isAdmin={profile?.role === 'admin'} onModerate={reviewReport} onChangeRole={changeRole} onLoadEvidence={async (reportId) => { const result = await fetchEvidence(reportId); return result; }} onLoadAIReview={fetchAIReview} onCreateVolunteerOpportunity={createVolunteerOpportunity} onUpdateVolunteerOpportunity={updateVolunteerOpportunity} onLoadVolunteerManagement={fetchVolunteerManagementOverview} onLoadVolunteerRegistrations={fetchOpportunityRegistrations} onUpdateVolunteerRegistration={updateVolunteerRegistration} onUpdateVolunteerOpportunityStatus={updateVolunteerOpportunityStatus} onSetVolunteerRegistrationOpen={setVolunteerRegistrationOpen} /> : <>
       <section className={`workspace${panelOpen ? ' panel-open' : ''}`}>
-        <aside className="report-panel">
+        <aside className="report-panel" id="community-reports" aria-label="Community reports and filters">
           <div className="panel-heading"><div><span className="eyebrow">COMMUNITY PULSE</span><h2>Reported concerns <span>{filtered.length}</span></h2></div><button className="icon-button mobile-close" onClick={() => setPanelOpen(false)} aria-label="Close report panel"><X size={18} /></button></div>
           <div className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search reports, municipalities, barangays" aria-label="Search reports or places" />{query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={14} /></button>}</div>
           {query.trim().length > 1 && (
@@ -394,17 +458,17 @@ function App() {
         />
       </section>
       <ProvincePulse
-        reports={reports}
+        reports={categoryBase}
         theme={theme}
         categories={categories}
-        coverage={coverage}
+        coverage={municipalityCoverage(categoryBase)}
         counts={counts}
         isStaff={isStaff}
         pending={pending}
-        verified={verified}
-        resolved={resolved}
-        thisWeek={thisWeek}
-        barangays={barangays}
+        verified={categoryBase.filter((report) => report.status === 'verified').length}
+        resolved={categoryBase.filter((report) => report.status === 'resolved').length}
+        thisWeek={withinDays(categoryBase, 7)}
+        barangays={barangayCoverage(categoryBase)}
         municipalityTotal={MUNICIPALITIES.length}
         category={category}
         area={area}
@@ -413,7 +477,8 @@ function App() {
       />
     </>}
     {notice && <div className="toast" role="status"><span><Check size={15} /></span>{notice}<button onClick={() => setNotice('')} aria-label="Dismiss message"><X size={14} /></button></div>}
-    {formOpen && authMode && isSupabaseConfigured && <AuthDialog supabase={supabase} initialMode={authMode} onNotice={setNotice} onClose={() => { setFormOpen(false); setAuthMode(null); }} />}
+    {welcomeMessage && <div className="welcome-toast" role="status"><span><Check size={13} /></span><div><strong>{welcomeMessage}</strong><small>Ready to make a difference in Eastern Samar?</small></div></div>}
+    {formOpen && authMode && isSupabaseConfigured && <AuthDialog supabase={supabase} initialMode={authMode} onNotice={setNotice} onAuthenticated={welcomeAfterLogin} onClose={() => { setFormOpen(false); setAuthMode(null); }} />}
     {(formOpen || picking) && !authMode && <ReportDialog categories={categories} onClose={() => { setFormOpen(false); setPicking(false); }} onSubmit={submitReport} onPickLocation={startPicking} location={location} hidden={picking} />}
     <footer className="site-footer"><span><HeartPulse size={14} /> A community-powered view of Eastern Samar</span><span>{isSupabaseConfigured ? 'Shared reports · moderation required' : 'Demo mode · map ready for live data'}</span></footer>
   </main>;

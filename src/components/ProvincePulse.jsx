@@ -24,17 +24,17 @@ export default function ProvincePulse({
   const idleCount = municipalityTotal - activeMunicipalities.length;
 
   return (
-    <div className="pulse">
+    <div className="pulse" id="community-impact">
       <header className="pulse-header">
         <div>
           <span className="eyebrow">EASTERN SAMAR</span>
-          <h3>Community pulse</h3>
+          <h3>{area === 'all' ? 'Community pulse' : area}</h3>
         </div>
-        <span className="pulse-header-meta">Local action across the province</span>
+        <span className="pulse-header-meta">Published reports · current area, search, status and date filters</span>
       </header>
 
       <section className="pulse-grid" aria-label="Province summary">
-        <Tile icon={Activity} value={reports.length} label="Community actions" tone="orange" />
+        <Tile icon={Activity} value={reports.length} label="Published reports" tone="orange" />
         <Tile icon={Building2} value={activeMunicipalities.length} suffix={` / ${municipalityTotal}`} label="Municipalities reached" tone="green" />
         <Tile icon={MapPin} value={barangays} label="Barangays named" tone="blue" />
         <Tile icon={ShieldCheck} value={isStaff ? pending : verified} label={isStaff ? 'Awaiting review' : 'Verified actions'} tone="violet" />

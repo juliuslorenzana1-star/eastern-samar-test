@@ -59,7 +59,7 @@ function ProvinceViewport({ focus }) {
   useEffect(() => {
     if (!focus?.latlng) return;
     const zoom = focus.zoom ?? Math.min(Math.max(map.getZoom(), 12), 15);
-    map.flyTo(focus.latlng, zoom, { duration: 0.75 });
+    map.flyTo(focus.latlng, zoom, { duration: 0.75, animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches });
   }, [map, focus]);
   return null;
 }
@@ -76,6 +76,7 @@ export default function ProvinceMap({
 }) {
   const mapRef = useRef(null);
   const [legendOpen, setLegendOpen] = useState(true);
+  const [roadsVisible, setRoadsVisible] = useState(false);
   const handleReady = useCallback((instance) => { mapRef.current = instance; }, []);
   const basemap = BASEMAPS[theme] ?? BASEMAPS.light;
   const provinceMask = useMemo(() => {
@@ -103,7 +104,7 @@ export default function ProvinceMap({
   }
 
   return (
-    <section className="map-stage" aria-label="Map of Eastern Samar">
+    <section className="map-stage" id="explore-map" aria-label="Map of Eastern Samar">
       <div className="map-topline">
         <div className="map-location">
           <span className="map-location-mark"><Crosshair size={14} /></span>
@@ -113,6 +114,7 @@ export default function ProvinceMap({
           </span>
         </div>
         <div className="map-top-actions">
+          <button className="map-tool-button" type="button" aria-pressed={roadsVisible} onClick={() => setRoadsVisible((visible) => !visible)}><Layers3 size={14} />{roadsVisible ? 'Province outline' : 'Show streets'}</button>
           <span className="map-count"><i /> {mappedCount} reports · {visibleVolunteers.length} activities</span>
           <button className="map-tool-button" type="button" onClick={onStartReport}><Plus size={14} /> Report</button>
         </div>
@@ -120,7 +122,7 @@ export default function ProvinceMap({
 
       <div className="map-hud" aria-live="polite">
         <span className="map-hud-badge">Eastern Samar</span>
-        <span>{reports.length || visibleVolunteers.length ? `${reports.length} concerns · ${visibleVolunteers.length} volunteer activities` : 'Demo mode · live provincial map ready'}</span>
+        <span>{reports.length || visibleVolunteers.length ? `${reports.length} concerns · ${visibleVolunteers.length} volunteer activities` : 'No published reports or activities match this view'}</span>
       </div>
 
       <MapContainer
@@ -135,13 +137,13 @@ export default function ProvinceMap({
         className="leaflet-map"
         preferCanvas
       >
-        <TileLayer
+        {roadsVisible && <TileLayer
           key={theme}
           url={basemap.url}
           attribution={basemap.attribution}
           subdomains="abcd"
           detectRetina
-        />
+        />}
         <Polygon
           positions={provinceMask}
           fillRule="evenodd"
@@ -159,8 +161,8 @@ export default function ProvinceMap({
             color: theme === 'dark' ? '#67cfa0' : '#236b59',
             weight: 1.8,
             opacity: 0.9,
-            fillColor: theme === 'dark' ? '#1d7457' : '#5d927d',
-            fillOpacity: theme === 'dark' ? 0.22 : 0.1,
+            fillColor: theme === 'dark' ? '#223b33' : '#c4d8cc',
+            fillOpacity: roadsVisible ? 0.12 : 1,
           }}
         />
         <MapHandle onReady={handleReady} />
@@ -232,6 +234,7 @@ export default function ProvinceMap({
                   style={{ '--legend-color': color }}
                   onClick={() => onCategory(category === item.slug ? 'all' : item.slug)}
                   title={`Filter by ${item.name}`}
+                  aria-pressed={category === item.slug}
                 >
                   <svg className="legend-glyph" viewBox="0 0 24 24" aria-hidden="true">{glyph.map((d) => <path key={d} d={d} />)}</svg>
                   <i className="legend-mark" />

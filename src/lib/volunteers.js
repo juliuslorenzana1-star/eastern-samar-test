@@ -1,5 +1,25 @@
 import { supabase } from './supabase.js';
 
+export async function sendEmailNotification(payload) {
+  if (!supabase) return { ok: false, skipped: true, reason: 'supabase_unavailable' };
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email-notification', {
+      body: payload,
+    });
+    if (error) {
+      console.warn('Email notification failed.', error);
+      return { ok: false, skipped: false, error };
+    }
+    if (data?.skipped) {
+      return { ok: false, skipped: true, reason: data.reason || 'email_not_configured' };
+    }
+    return { ok: data?.accepted === true || data?.status === 'accepted', data };
+  } catch (error) {
+    console.warn('Email notification failed.', error);
+    return { ok: false, skipped: false, error };
+  }
+}
+
 export async function fetchVolunteerOpportunities() {
   if (!supabase) return [];
   const { data, error } = await supabase
@@ -49,12 +69,49 @@ export async function fetchVolunteerCommunityTotals() {
   };
 }
 
+export async function fetchVolunteerLeaderboard() {
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc('get_public_leaderboard');
+  if (error) throw error;
+  return (data ?? []).map((entry) => ({
+    rank: Number(entry.rank ?? 0),
+    displayName: entry.display_name ?? 'Community member',
+    communityHours: Number(entry.community_hours ?? 0),
+    volunteerActivities: Number(entry.volunteer_activities ?? 0),
+  }));
+}
+
+export async function fetchVolunteerPrivacy(userId) {
+  const { data, error } = await supabase.from('profiles').select('public_alias').eq('id', userId).single();
+  if (error) throw new Error('Public aliases need the pending database update. You can still keep your participation private.');
+  return data;
+}
+
+export async function updateProfileLeaderboardVisibility(showOnLeaderboard, publicAlias) {
+  if (!supabase) throw new Error('The shared database is not configured.');
+  const { data: user } = await supabase.auth.getUser();
+  if (!user.user) throw new Error('Sign in to update your public visibility.');
+  const updates = { show_on_leaderboard: Boolean(showOnLeaderboard) };
+  if (showOnLeaderboard) {
+    if (!publicAlias?.trim() || publicAlias.trim().length > 80) throw new Error('Choose a public name between 1 and 80 characters.');
+    updates.public_alias = publicAlias.trim();
+  }
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', user.user.id)
+    .select('id').single();
+  if (error) throw error;
+  if (!data) throw new Error('Your visibility preference could not be saved.');
+}
+
 export async function registerForVolunteerOpportunity(opportunityId) {
   if (!supabase) throw new Error('The shared database is not configured.');
-  const { error } = await supabase.rpc('join_volunteer_opportunity', {
-    p_opportunity_id: opportunityId,
-  });
+  const { error } = await supabase.rpc('join_volunteer_opportunity', { p_opportunity_id: opportunityId });
   if (error) throw error;
+  // The record exists before any email request; email errors never undo joining.
+  const notification = await sendEmailNotification({ type: 'volunteer_registration', opportunity_id: opportunityId });
+  return { notification };
 }
 
 export async function cancelVolunteerRegistration(registrationId) {

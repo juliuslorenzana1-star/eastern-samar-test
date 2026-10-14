@@ -2,10 +2,26 @@ import { useState } from 'react';
 import { ArrowLeft, ShieldCheck, X } from 'lucide-react';
 
 const copy = {
-  'sign-in': { title: 'Sign in', action: 'Sign in', intro: 'Access your reports and community review tools.' },
-  'sign-up': { title: 'Create an account', action: 'Create account', intro: 'Your account lets you submit concerns and follow their status.' },
-  recovery: { title: 'Reset your password', action: 'Send reset link', intro: 'We will send a recovery link to your email address.' },
-  update: { title: 'Choose a new password', action: 'Update password', intro: 'Set a new password for your account.' },
+  'sign-in': {
+    title: 'Sign in',
+    action: 'Sign in',
+    intro: 'From our barangays to our coastlines, Eastern Samar Community Action Map connects neighbors with local concerns, volunteer opportunities, and community action.',
+  },
+  'sign-up': {
+    title: 'Create an account',
+    action: 'Create account',
+    intro: 'Join Estehanons helping families, barangays, and coastal communities protect our environment and respond to local concerns.',
+  },
+  recovery: {
+    title: 'Reset your password',
+    action: 'Send reset link',
+    intro: 'We will send a recovery link to your email address so you can continue helping Eastern Samar communities.',
+  },
+  update: {
+    title: 'Choose a new password',
+    action: 'Update password',
+    intro: 'Set a new password for your account and keep helping your community securely.',
+  },
 };
 
 const authRedirectUrl = new URL(import.meta.env.BASE_URL, window.location.href).href;
@@ -26,7 +42,7 @@ function authErrorMessage(error) {
   return 'We could not complete that account request. Check your details and try again.';
 }
 
-export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose, onNotice }) {
+export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose, onNotice, onAuthenticated }) {
   const [mode, setMode] = useState(initialMode);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -41,8 +57,9 @@ export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose,
     setError('');
     try {
       if (mode === 'sign-in') {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
         if (authError) throw authError;
+        onAuthenticated?.(data.user);
         onNotice('You are signed in. Reports will load from the shared database.');
         onClose();
       } else if (mode === 'sign-up') {
@@ -99,6 +116,7 @@ export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose,
           <button className="icon-button" onClick={onClose} aria-label="Close account dialog"><X size={19} /></button>
         </div>
         <p className="modal-intro">{current.intro}</p>
+        <p className="modal-byline">Developed by Julius Lorenzana</p>
         <form onSubmit={submit}>
           {mode === 'sign-up' && (
             <label className="field-label">Display name <span className="optional-label">Optional</span>
