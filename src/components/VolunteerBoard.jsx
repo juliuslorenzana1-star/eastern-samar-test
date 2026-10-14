@@ -4,6 +4,7 @@ import {
   Search, ShieldCheck, Users, X,
 } from 'lucide-react';
 import { fetchProfile } from '../lib/reports.js';
+import useDialogFocus from '../lib/useDialogFocus.js';
 import { MUNICIPALITIES, categoryVisual, hasCoordinates } from '../lib/place.js';
 import {
   cancelVolunteerRegistration, fetchVolunteerCommunityTotals, fetchVolunteerLeaderboard,
@@ -103,6 +104,7 @@ export default function VolunteerBoard({
   const [communityTotals, setCommunityTotals] = useState({ volunteersJoined: 0, communityHours: 0 });
   const [leaderboard, setLeaderboard] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState('');
   const [publicAlias, setPublicAlias] = useState('');
   const [privacyReady, setPrivacyReady] = useState(false);
   const [privacyBusy, setPrivacyBusy] = useState(false);
@@ -125,6 +127,7 @@ export default function VolunteerBoard({
   const [skill, setSkill] = useState('all');
   const [now] = useState(() => Date.now());
   const initialOpened = useRef(null);
+  const activityDialogRef = useDialogFocus({ active: Boolean(dialog && selected), busy: Boolean(busyId), onClose: () => setDialog('') });
 
   async function reloadOpportunities() {
     const nextOpportunities = await fetchVolunteerOpportunities();
@@ -182,9 +185,10 @@ export default function VolunteerBoard({
     if (!configured) return undefined;
     let active = true;
     setLeaderboardLoading(true);
+    setLeaderboardError('');
     fetchVolunteerLeaderboard()
       .then((nextEntries) => { if (active) setLeaderboard(nextEntries); })
-      .catch(() => { if (active) { setLeaderboard([]); setMessage('Community recognition is unavailable. Please try again later.'); } })
+      .catch(() => { if (active) { setLeaderboard([]); setLeaderboardError('Community recognition is unavailable. Please try again later.'); } })
       .finally(() => { if (active) setLeaderboardLoading(false); });
     return () => { active = false; };
   }, [configured]);
@@ -457,7 +461,7 @@ export default function VolunteerBoard({
           <span>{profileVisibility ? 'On' : 'Off'}</span>
         </label>
       </div>}
-      {leaderboardLoading ? <div className="leaderboard-skeleton" role="status" aria-live="polite" /> : leaderboard.length ? <ol className="leaderboard-list">{leaderboard.map((entry) => <li key={`${entry.displayName}-${entry.rank}`}><span className="leaderboard-rank">#{entry.rank}</span><span className="leaderboard-name">{entry.displayName}</span><span className="leaderboard-hours">{entry.communityHours} hrs</span><span className="leaderboard-activities">{entry.volunteerActivities} activities</span></li>)}</ol> : <div className="volunteer-empty leaderboard-empty"><ShieldCheck size={21} /><strong>No public community leaders yet.</strong><span>When community members opt in to share their hours, this leaderboard will appear here.</span></div>}
+      {leaderboardError ? <p className="volunteer-message is-error" role="alert">{leaderboardError}</p> : leaderboardLoading ? <div className="leaderboard-skeleton" role="status" aria-live="polite" /> : leaderboard.length ? <ol className="leaderboard-list">{leaderboard.map((entry) => <li key={`${entry.displayName}-${entry.rank}`}><span className="leaderboard-rank">#{entry.rank}</span><span className="leaderboard-name">{entry.displayName}</span><span className="leaderboard-hours">{entry.communityHours} hrs</span><span className="leaderboard-activities">{entry.volunteerActivities} activities</span></li>)}</ol> : <div className="volunteer-empty leaderboard-empty"><ShieldCheck size={21} /><strong>No public community leaders yet.</strong><span>When community members opt in to share their hours, this leaderboard will appear here.</span></div>}
     </section>
 
     <div className="volunteer-tabs" role="tablist" aria-label="Volunteer views">
@@ -501,8 +505,8 @@ export default function VolunteerBoard({
     {message && !dialog && <p className="volunteer-message" role="status">{message}</p>}
     {configured && <p className="volunteer-privacy"><ShieldCheck size={13} /> Published Eastern Samar activities only · registrations are private to you and authorized staff</p>}
 
-    {dialog && selected && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setDialog('')}>
-      <section className="report-modal volunteer-modal" role="dialog" aria-modal="true" aria-labelledby="volunteer-detail-title">
+    {dialog && selected && <div className="modal-backdrop" onMouseDown={(event) => !busyId && event.target === event.currentTarget && setDialog('')}>
+      <section ref={activityDialogRef} tabIndex={-1} className="report-modal volunteer-modal" role="dialog" aria-modal="true" aria-labelledby="volunteer-detail-title" aria-busy={Boolean(busyId)}>
         <div className="modal-head"><div><span className="eyebrow">EASTERN SAMAR · VOLUNTEER ACTIVITY</span><h2 id="volunteer-detail-title">{dialog === 'success' ? "You're in!" : dialog === 'confirm' ? 'Join this activity?' : selected.title}</h2></div><button type="button" className="icon-button" onClick={() => setDialog('')} aria-label="Close activity details"><X size={19} /></button></div>
         {dialog === 'details' && <div className="volunteer-detail-content">
           <div className="volunteer-detail-banner"><span className="volunteer-category" style={{ '--volunteer-category-color': categoryVisual(selected.category, theme).color }}>{categoryName(selected.category)}</span><h3>{selected.title}</h3><span className="volunteer-status">{selected.status === 'full' ? 'At capacity' : selected.status === 'cancelled' ? 'Cancelled' : selected.status === 'completed' ? 'Completed' : selected.registration_open === false ? 'Registration closed' : 'Accepting volunteers'}</span></div>

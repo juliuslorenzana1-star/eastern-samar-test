@@ -13,7 +13,7 @@ globalThis.fetch = async (url, options = {}) => {
   const json = (value, status = 200) => new Response(JSON.stringify(value), { status });
   if (url.endsWith('/auth/v1/user')) return json({ id: reference, email: 'private@example.test' });
   if (url.includes('/profiles?')) return json([{ display_name: '<script>name</script>' }]);
-  if (url.includes('/reports?')) return json(owned ? [{ id: reference, title: '<img src=x>', category_slug: 'environment', municipality: 'Borongan City', barangay: 'Test', created_at: '2026-10-14T00:00:00Z', status: 'pending_review' }] : []);
+  if (url.endsWith('/rpc/my_reports')) return json(owned ? [{ id: reference, title: '<img src=x>', category_slug: 'environment', municipality: 'Borongan City', barangay: 'Test', created_at: '2026-10-14T00:00:00Z', status: 'pending_review' }] : []);
   if (url.includes('/report_categories?')) return json([{ name: 'Environment' }]);
   if (url.includes('/volunteer_registrations?')) return json([{ id: reference, status: 'registered', opportunity: { title: 'Coastal activity', municipality: 'Guiuan', tasks: [], what_to_bring: [] } }]);
   if (url.endsWith('/rpc/claim_email_notification')) return json(claimStatus);
@@ -33,7 +33,7 @@ test('requires authentication', async () => {
 test('validates record identifiers before querying records', async () => {
   calls.length = 0;
   assert.equal((await handler(request({ ...payload, report_id: 'invalid' }))).status, 400);
-  assert.equal(calls.some(({ url }) => url.includes('/reports?')), false);
+  assert.equal(calls.some(({ url }) => url.includes('/rpc/my_reports')), false);
 });
 test('rejects records not owned by the caller', async () => {
   owned = false; calls.length = 0;
@@ -52,6 +52,7 @@ test('uses escaped stored data, stable idempotency and acceptance language', asy
   assert.equal(message.html.includes('UNTRUSTED INPUT'), false);
   assert.match(message.html, /#submission=/);
   assert.equal(email.options.headers['Idempotency-Key'], 'report_submission/' + reference);
+  assert.equal(calls.some(({ url }) => url.includes('reporter_id=')), false);
 });
 test('durable reservation blocks repeated provider calls', async () => {
   calls.length = 0; claimStatus = 'accepted';

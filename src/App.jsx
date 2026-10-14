@@ -1,17 +1,15 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
   Activity, ArrowDownUp, ArrowRight, CalendarDays, Check, ChevronDown,
   CircleHelp, Compass, Filter, HeartPulse, Inbox, Layers3, LogOut, MapPin,
   Menu, Plus, Search, ShieldCheck, Users, X,
 } from 'lucide-react';
 import AuthDialog from './components/AuthDialog.jsx';
-import ModeratorDashboard from './components/ModeratorDashboard.jsx';
 import ProvinceMap from './components/ProvinceMap.jsx';
 import ProvincePulse from './components/ProvincePulse.jsx';
 import ReportDialog from './components/ReportDialog.jsx';
 import ReportDetailCard from './components/ReportDetailCard.jsx';
 import ThemeToggle from './components/ThemeToggle.jsx';
-import VolunteerBoard from './components/VolunteerBoard.jsx';
 import { isSupabaseConfigured, supabase } from './lib/supabase.js';
 import {
   createReport, fetchAIReview, fetchMyReports, fetchProfile, fetchProfiles, fetchPublicReports,
@@ -30,6 +28,9 @@ import {
 import {
   applyThemeMode, readStoredThemeMode, resolveThemeMode, storeThemeMode, watchSystemTheme,
 } from './lib/theme.js';
+
+const ModeratorDashboard = lazy(() => import('./components/ModeratorDashboard.jsx'));
+const VolunteerBoard = lazy(() => import('./components/VolunteerBoard.jsx'));
 
 export function Status({ value, theme = 'light' }) {
   return <span className="status-pill" style={{ '--status-color': statusColor(value, theme) }}><i className="status-dot" />{formatStatus(value)}</span>;
@@ -84,6 +85,7 @@ function App() {
   const [notice, setNotice] = useState('');
   const [authMode, setAuthMode] = useState(null);
   const [view, setView] = useState('map');
+  const [navigationTarget, setNavigationTarget] = useState('map');
   const [loadedAt] = useState(() => Date.now());
   const [themeMode, setThemeMode] = useState(() => readStoredThemeMode());
   const [systemTick, setSystemTick] = useState(0);
@@ -164,6 +166,7 @@ function App() {
       setSession(nextSession);
       if (!nextSession) {
         setWelcomeMessage('');
+        setSelected(null);
         setProfile(null);
         setProfiles([]);
         setMyReports([]);
@@ -187,16 +190,18 @@ function App() {
       return undefined;
     }
     let active = true;
-    Promise.all([
+    Promise.allSettled([
       fetchPublicReports(),
       fetchReportCategories(),
       sessionUserId ? fetchMyReports(sessionUserId) : Promise.resolve([]),
     ])
-      .then(([reportData, categoryData, myData]) => {
+      .then(([reportResult, categoryResult, myResult]) => {
         if (!active) return;
-        setReports(reportData);
-        setCategories(categoryData);
-        setMyReports(myData);
+        if (reportResult.status === 'fulfilled') setReports(reportResult.value);
+        if (categoryResult.status === 'fulfilled') setCategories(categoryResult.value);
+        if (myResult.status === 'fulfilled') setMyReports(myResult.value);
+        else { setMyReports([]); setNotice('Your submissions could not be loaded. Public exploration is still available. Try refreshing later.'); }
+        setLoadError(reportResult.status === 'rejected' || categoryResult.status === 'rejected' ? 'Community reports or categories could not be loaded. Check your connection and try again.' : '');
       })
       .catch((error) => { if (active) setLoadError(error.message || 'We could not load community reports.'); })
       .finally(() => { if (active) setLoading(false); });
@@ -297,14 +302,18 @@ function App() {
   function startPicking() { setPicking(true); setFormOpen(false); setNotice('Click the map to place the report pin.'); }
   function pickPoint(point) { setLocation({ lat: point.lat, lng: point.lng }); setPicking(false); setFormOpen(true); setNotice('Location added to the report.'); }
   async function submitReport(values) {
-    const { warning } = await createReport(values, session?.user?.id);
-    await reloadReports();
+    const { report, warning } = await createReport(values, session?.user?.id);
+    // A successful insert must never be presented as a failed submission when
+    // a subsequent refresh fails: retrying would create a second report.
+    setMyReports((current) => [report, ...current.filter(({ id }) => id !== report.id)]);
+    let refreshWarning = '';
+    try { await reloadReports(); } catch { refreshWarning = ' Report saved, but the list could not refresh. Please refresh later to see updates.'; }
     // The new report is not on the public map yet, so do not focus it there —
     // send the resident to their own submission list instead.
     setSelected(null);
     setShowSubmissions(true);
     setPanelOpen(true);
-    setNotice(warning || 'Report submitted and saved securely. Track it under My submissions — it appears on the map once a moderator approves it.');
+    setNotice((warning || 'Report submitted and saved securely. Track it under My submissions — it appears on the map once a moderator approves it.') + refreshWarning);
   }
   async function signOut() {
     const { error } = await supabase.auth.signOut();
@@ -332,6 +341,7 @@ function App() {
       else setNotice('Account access is unavailable until the shared database is connected.');
       return;
     }
+    setNavigationTarget(destination);
     setView(['volunteers', 'review'].includes(destination) ? destination : 'map');
     setShowSubmissions(destination === 'profile');
     setPanelOpen(['reports', 'profile'].includes(destination));
@@ -347,6 +357,8 @@ function App() {
     try { name = (await fetchProfile(user.id))?.display_name?.trim().split(/\s+/)[0] || ''; } catch { /* Use a neutral greeting when the profile is unavailable. */ }
     setWelcomeMessage(name ? `Welcome back, ${name}!` : 'Welcome back!');
   }
+
+  const activeNavigation = view === 'volunteers' || view === 'review' ? view : showSubmissions ? 'profile' : navigationTarget;
 
   return <main className="app-shell">
     <a className="skip-link" href="#primary-navigation">Skip to navigation</a>
@@ -364,11 +376,11 @@ function App() {
       </div>
     </header>
     <nav className="primary-navigation" id="primary-navigation" aria-label="Community platform">
-      <button aria-current={view === 'map' && !showSubmissions ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={17} />Explore map</button>
-      <button onClick={() => navigate('reports')}><Inbox size={17} />Community reports</button>
+      <button aria-current={activeNavigation === 'map' ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={17} />Explore map</button>
+      <button aria-current={activeNavigation === 'reports' ? 'page' : undefined} onClick={() => navigate('reports')}><Inbox size={17} />Community reports</button>
       <button onClick={() => navigate('report')}><Plus size={17} />Submit a concern</button>
       <button aria-current={view === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={17} />Volunteer</button>
-      <button onClick={() => navigate('impact')}><Activity size={17} />Community impact</button>
+      <button aria-current={activeNavigation === 'impact' ? 'page' : undefined} onClick={() => navigate('impact')}><Activity size={17} />Community impact</button>
       <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={17} />My submissions</button>
       {isStaff && <button aria-current={view === 'review' ? 'page' : undefined} onClick={() => navigate('review')}><Layers3 size={17} />Administration</button>}
     </nav>
@@ -382,6 +394,7 @@ function App() {
       <small>Developed by Julius Lorenzana</small>
     </section>}
     {loadError && <div className="app-error" role="alert"><strong>Unable to load the shared platform.</strong><span>{loadError}</span><button className="outline-button" onClick={() => window.location.reload()}>Try again</button></div>}
+    <Suspense fallback={<section className="view-loading" role="status"><Compass size={22} /><strong>Opening {view === 'review' ? 'administration' : 'volunteer opportunities'}…</strong><span>The community map will be ready when you return.</span></section>}>
     {view === 'volunteers' ? <VolunteerBoard
       configured={isSupabaseConfigured}
       userId={sessionUserId}
@@ -405,7 +418,7 @@ function App() {
       onOpportunityOpened={clearVolunteerInitial}
     /> : view === 'review' && isStaff ? <ModeratorDashboard reports={queue} categories={categories} profiles={profiles} isAdmin={profile?.role === 'admin'} onModerate={reviewReport} onChangeRole={changeRole} onLoadEvidence={async (reportId) => { const result = await fetchEvidence(reportId); return result; }} onLoadAIReview={fetchAIReview} onCreateVolunteerOpportunity={createVolunteerOpportunity} onUpdateVolunteerOpportunity={updateVolunteerOpportunity} onLoadVolunteerManagement={fetchVolunteerManagementOverview} onLoadVolunteerRegistrations={fetchOpportunityRegistrations} onUpdateVolunteerRegistration={updateVolunteerRegistration} onUpdateVolunteerOpportunityStatus={updateVolunteerOpportunityStatus} onSetVolunteerRegistrationOpen={setVolunteerRegistrationOpen} /> : <>
       <section className={`workspace${panelOpen ? ' panel-open' : ''}`}>
-        <aside className="report-panel" id="community-reports" aria-label="Community reports and filters">
+        <aside className="report-panel" id="community-reports" aria-label="Community reports and filters" tabIndex={0}>
           <div className="panel-heading"><div><span className="eyebrow">COMMUNITY PULSE</span><h2>Reported concerns <span>{filtered.length}</span></h2></div><button className="icon-button mobile-close" onClick={() => setPanelOpen(false)} aria-label="Close report panel"><X size={18} /></button></div>
           <div className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search reports, municipalities, barangays" aria-label="Search reports or places" />{query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={14} /></button>}</div>
           {query.trim().length > 1 && (
@@ -437,7 +450,7 @@ function App() {
           focus={focus}
           picking={picking}
           onPick={pickPoint}
-          onCancelPick={() => setPicking(false)}
+          onCancelPick={() => { setPicking(false); setFormOpen(true); }}
           pickLocation={location}
           onStartReport={startReport}
           mappedCount={mappedCount}
@@ -476,6 +489,7 @@ function App() {
         onSelectPlace={focusOnPlace}
       />
     </>}
+    </Suspense>
     {notice && <div className="toast" role="status"><span><Check size={15} /></span>{notice}<button onClick={() => setNotice('')} aria-label="Dismiss message"><X size={14} /></button></div>}
     {welcomeMessage && <div className="welcome-toast" role="status"><span><Check size={13} /></span><div><strong>{welcomeMessage}</strong><small>Ready to make a difference in Eastern Samar?</small></div></div>}
     {formOpen && authMode && isSupabaseConfigured && <AuthDialog supabase={supabase} initialMode={authMode} onNotice={setNotice} onAuthenticated={welcomeAfterLogin} onClose={() => { setFormOpen(false); setAuthMode(null); }} />}

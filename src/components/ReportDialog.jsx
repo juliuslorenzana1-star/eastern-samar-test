@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapPin, Plus, ShieldCheck, X } from 'lucide-react';
 import { MUNICIPALITIES as municipalities } from '../lib/place.js';
+import { validateEvidenceFile } from '../lib/reports.js';
+import useDialogFocus from '../lib/useDialogFocus.js';
 
 export default function ReportDialog({ categories, location, hidden, onClose, onPickLocation, onSubmit }) {
   const [form, setForm] = useState({ title: '', category: '', municipality: '', barangay: '', description: '', incidentAt: '', neededBy: '', priority: 'normal' });
@@ -8,6 +10,8 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
   const [preview, setPreview] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const dialogRef = useDialogFocus({ active: !hidden, busy, onClose });
+  const submitLock = useRef(false);
 
   useEffect(() => () => {
     if (preview) URL.revokeObjectURL(preview);
@@ -17,17 +21,27 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   }
 
-  function chooseEvidence(event) {
+  async function chooseEvidence(event) {
     const file = event.target.files?.[0] ?? null;
     if (preview) URL.revokeObjectURL(preview);
     setPreview('');
-    setEvidence(file);
+    setEvidence(null);
     setError('');
-    if (file) setPreview(URL.createObjectURL(file));
+    if (!file) return;
+    try {
+      await validateEvidenceFile(file);
+      setEvidence(file);
+      setPreview(URL.createObjectURL(file));
+    } catch (fileError) {
+      event.target.value = '';
+      setError(fileError.message);
+    }
   }
 
   async function submit(event) {
     event.preventDefault();
+    if (submitLock.current) return;
+    submitLock.current = true;
     setError('');
     setBusy(true);
     try {
@@ -42,6 +56,7 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
     } catch (submitError) {
       setError(submitError.message || 'We couldn’t submit your report. Please try again.');
     } finally {
+      submitLock.current = false;
       setBusy(false);
     }
   }
@@ -49,14 +64,16 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
   const selectedCategory = form.category || categories[0]?.slug || '';
 
   return (
-    <div className={`modal-backdrop${hidden ? ' is-hidden' : ''}`} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-form-title">
+    <div className={`modal-backdrop${hidden ? ' is-hidden' : ''}`} onMouseDown={(event) => !busy && event.target === event.currentTarget && onClose()}>
+      <section ref={dialogRef} tabIndex={-1} className="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-form-title" aria-busy={busy}>
         <div className="modal-head">
           <div><span className="eyebrow">COMMUNITY REPORT</span><h2 id="report-form-title">Add a concern</h2></div>
-          <button className="icon-button" onClick={onClose} aria-label="Close report form"><X size={19} /></button>
+          <button className="icon-button" disabled={busy} onClick={onClose} aria-label="Close report form"><X size={19} /></button>
         </div>
         <p className="modal-intro">Reports begin private and pending review. Don’t include names or details that could identify vulnerable people. When configured, title and description may be screened by an external service; its flags are advisory and a human moderator decides publication.</p>
         <form onSubmit={submit}>
+          <fieldset className="report-form-section" disabled={busy}>
+          <legend><span>01</span> What needs attention?</legend>
           <label className="field-label">Concern title
             <input name="title" maxLength="120" minLength="6" required value={form.title} onChange={update} placeholder="What needs attention?" />
           </label>
@@ -76,6 +93,9 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
           <label className="field-label">Barangay <span className="optional-label">Optional</span>
             <input name="barangay" maxLength="100" value={form.barangay} onChange={update} placeholder="Barangay name" />
           </label>
+          </fieldset>
+          <fieldset className="report-form-section" disabled={busy}>
+          <legend><span>02</span> Add context and a location</legend>
           <div className="form-row">
             <label className="field-label">Incident date and time <span className="optional-label">Optional</span>
               <input name="incidentAt" type="datetime-local" value={form.incidentAt} onChange={update} />
@@ -105,6 +125,7 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
             <span className="field-hint">JPEG, PNG, or WebP up to 5 MB. Evidence is stored privately for the reporter and moderators.</span>
           </label>
           {preview && <img className="evidence-preview" src={preview} alt="Preview of selected evidence" />}
+          </fieldset>
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="modal-foot">
             <span><ShieldCheck size={14} /> Private until reviewed</span>

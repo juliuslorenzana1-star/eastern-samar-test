@@ -88,9 +88,7 @@ export default function ProvinceMap({
     ));
     return [shell, ...provinceRings];
   }, []);
-  const visible = useMemo(() => reports.filter((report) => (
-    Number.isFinite(Number(report.latitude)) && Number.isFinite(Number(report.longitude))
-  )), [reports]);
+  const visible = useMemo(() => reports.filter(hasCoordinates), [reports]);
   const visibleVolunteers = useMemo(() => volunteerOpportunities.filter((opportunity) => (
     hasCoordinates(opportunity) && !['cancelled', 'completed'].includes(opportunity.status)
   )), [volunteerOpportunities]);
@@ -100,7 +98,7 @@ export default function ProvinceMap({
     if (!instance) return;
     if (action === 'in') instance.zoomIn();
     else if (action === 'out') instance.zoomOut();
-    else instance.flyBounds(PROVINCE.bounds, { padding: [18, 18], duration: 0.7 });
+    else instance.flyBounds(PROVINCE.bounds, { padding: [18, 18], duration: 0.7, animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches });
   }
 
   return (

@@ -29,8 +29,11 @@ Deno.serve(async (request: Request) => {
     const profiles = await read('profiles', 'id=eq.' + user.id + '&select=display_name');
     let reference: string, title: string, details: [string, unknown][], steps: string, fragment: string;
     if (type === 'report_submission') {
-      const records = await read('reports', 'id=eq.' + id + '&reporter_id=eq.' + user.id + '&select=id,title,category_slug,municipality,barangay,created_at,status');
-      const report = records[0];
+      // reporter_id is deliberately not SELECT-granted to authenticated users.
+      // The existing RPC applies auth.uid() inside PostgreSQL, including for staff.
+      const ownReports = await fetch(url + '/rest/v1/rpc/my_reports', { method: 'POST', headers: { apikey: anon, Authorization: authorization, 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(10000) });
+      if (!ownReports.ok) return reply({ error: 'report_lookup_unavailable' }, 503);
+      const report = (await ownReports.json()).find((record: { id: string }) => record.id === id);
       if (!report) return reply({ error: 'record_not_found' }, 404);
       const categories = await read('report_categories', 'slug=eq.' + encodeURIComponent(report.category_slug) + '&select=name');
       reference = report.id; title = 'Your concern was received';

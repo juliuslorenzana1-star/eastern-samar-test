@@ -105,27 +105,8 @@ export async function fetchMyReports(userId) {
   const { data: own, error: rpcError } = await supabase.rpc('my_reports');
   if (!rpcError) return own ?? [];
 
-  // Fallback for a project where the migration has not been applied yet, so a
-  // missing function cannot blank the whole platform. RLS (reports_read_owner_
-  // staff_or_public) already restricts a resident to their own rows plus the
-  // published ones, so asking for the unpublished slice returns exactly this
-  // caller's pending and rejected submissions -- and it only touches columns that
-  // are granted. A moderator sees every unpublished row here, which their review
-  // queue already shows them.
-  const query = (columns) => supabase
-    .from('reports')
-    .select(columns)
-    .eq('is_public', false)
-    .order('created_at', { ascending: false })
-    .limit(100);
-  let { data, error } = await query(`${reportColumns},decision_note,reviewed_at`);
-  // 42703 = undefined column: the review-decision migration has not been applied
-  // to this project yet. Fall back to the base columns instead of failing the load.
-  if (error && error.code === '42703') {
-    ({ data, error } = await query(reportColumns));
-  }
-  if (error) throw error;
-  return data ?? [];
+  // Fail closed: a staff-wide unpublished query cannot identify ownership.
+  throw new Error('Your submissions could not be loaded. Please try again later; the my_reports database function must be available.');
 }
 
 // The moderation queue. Returns every report the caller is allowed to see, which

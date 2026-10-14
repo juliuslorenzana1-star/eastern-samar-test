@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, ShieldCheck, X } from 'lucide-react';
+import useDialogFocus from '../lib/useDialogFocus.js';
 
 const copy = {
   'sign-in': {
@@ -49,6 +50,7 @@ export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose,
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const dialogRef = useDialogFocus({ busy, onClose });
   const current = copy[mode];
 
   async function submit(event) {
@@ -100,20 +102,21 @@ export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose,
   }
 
   function changeMode(nextMode) {
+    if (busy) return;
     setError('');
     setPassword('');
     setMode(nextMode);
   }
 
   return (
-    <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="report-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title">
+    <div className="modal-backdrop" onMouseDown={(event) => !busy && event.target === event.currentTarget && onClose()}>
+      <section ref={dialogRef} tabIndex={-1} className="report-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" aria-busy={busy}>
         <div className="modal-head">
           <div>
             <span className="eyebrow">EASTERN SAMAR COMMUNITY ACTION</span>
             <h2 id="auth-dialog-title">{current.title}</h2>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close account dialog"><X size={19} /></button>
+          <button className="icon-button" disabled={busy} onClick={onClose} aria-label="Close account dialog"><X size={19} /></button>
         </div>
         <p className="modal-intro">{current.intro}</p>
         <p className="modal-byline">Developed by Julius Lorenzana</p>

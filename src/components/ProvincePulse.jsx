@@ -24,7 +24,7 @@ export default function ProvincePulse({
   const idleCount = municipalityTotal - activeMunicipalities.length;
 
   return (
-    <div className="pulse" id="community-impact">
+    <div className="pulse" id="community-impact" role="region" aria-label="Community pulse statistics" tabIndex={0}>
       <header className="pulse-header">
         <div>
           <span className="eyebrow">EASTERN SAMAR</span>
@@ -42,6 +42,9 @@ export default function ProvincePulse({
         <Tile icon={CalendarDays} value={thisWeek} label="Filed this week" tone="blue" />
       </section>
 
+      <p className="pulse-note">Counts reflect published reports loaded for this session and the current area, search, status and date filters. Private submissions are excluded.</p>
+      <details className="pulse-details" open>
+      <summary>Categories and municipality coverage</summary>
       <section className="pulse-block" aria-label="Reports by category">
         <header className="pulse-block-head"><span>Concern categories</span><small>Select a category to filter the map</small></header>
         <div className="pulse-chips">
@@ -93,6 +96,7 @@ export default function ProvincePulse({
         ) : <p className="pulse-note">No approved community actions on the map yet. Municipalities appear here as reports are reviewed and published.</p>}
         {idleCount > 0 && <p className="pulse-note">{idleCount} {idleCount === 1 ? 'municipality has' : 'municipalities have'} no published action yet.</p>}
       </section>
+      </details>
     </div>
   );
 }

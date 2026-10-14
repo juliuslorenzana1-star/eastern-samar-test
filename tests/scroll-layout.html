@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Local scrolling regression checks</title></head>
+<body><pre id="results">Running rendered checks…</pre>
+<script type="module">
+// Local-only harness: test entries are injected into the rendered DOM, never
+// submitted to Supabase. Each iframe renders the actual application and CSS.
+const results = [];
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+for (const [width, height] of [[360, 640], [768, 1024], [1440, 900]]) {
+  for (const theme of ['light', 'dark']) {
+    const frame = document.createElement('iframe');
+    frame.style.cssText = `width:${width}px;height:${height}px;border:0;display:block`;
+    frame.src = '/'; document.body.append(frame);
+    await new Promise((resolve) => frame.onload = resolve);
+    const win = frame.contentWindow, doc = frame.contentDocument;
+    for (let attempt = 0; attempt < 80 && !doc.querySelector('.report-panel'); attempt++) await wait(100);
+    doc.querySelector('.entry-footer button')?.click();
+    await wait(100);
+    doc.documentElement.dataset.theme = theme;
+    const panel = doc.querySelector('.report-panel'), pulse = doc.querySelector('.pulse');
+    if (!panel || !pulse) { results.push({ width, theme, error: 'Application did not mount' }); frame.remove(); continue; }
+    const mobileDrawerHiddenWhenClosed = width > 900 || win.getComputedStyle(panel).display === 'none';
+    if (width <= 900) doc.querySelector('.workspace').classList.add('panel-open');
+    const list = doc.querySelector('.report-list');
+    list.replaceChildren();
+    for (let index = 0; index < 60; index++) {
+      const row = doc.createElement('button');
+      row.className = 'report-card';
+      row.textContent = `Synthetic scrolling test concern ${index + 1} — long barangay information`;
+      list.append(row);
+    }
+    const coverage = doc.createElement('ul'); coverage.className = 'pulse-coverage';
+    for (let index = 0; index < 40; index++) {
+      const row = doc.createElement('li');
+      row.innerHTML = `<button class="coverage-row"><span class="coverage-name">Synthetic municipality ${index + 1}</span><span class="coverage-meta">Test layout content only</span></button>`;
+      coverage.append(row);
+    }
+    pulse.querySelector('details').append(coverage);
+    await wait(100);
+    panel.focus();
+    const keyboardFocusable = doc.activeElement === panel;
+    panel.scrollTop = panel.scrollHeight;
+    const panelBottom = panel.getBoundingClientRect().bottom;
+    const lastReportReachable = list.lastElementChild.getBoundingClientRect().bottom <= panelBottom + 1;
+    const reportScrolls = panel.scrollHeight > panel.clientHeight && panel.scrollTop > 0;
+    const noNestedReportScrollbar = win.getComputedStyle(list).overflowY === 'visible';
+    const noNestedCoverageScrollbar = win.getComputedStyle(coverage).overflowY === 'visible';
+    let pulseReachable;
+    if (width > 900) {
+      pulse.scrollTop = pulse.scrollHeight;
+      pulseReachable = pulse.scrollTop > 0 && coverage.lastElementChild.getBoundingClientRect().bottom <= pulse.getBoundingClientRect().bottom + 1;
+    } else {
+      coverage.lastElementChild.scrollIntoView({ block: 'end' });
+      pulseReachable = win.getComputedStyle(pulse).overflowY === 'visible' && coverage.lastElementChild.getBoundingClientRect().bottom <= win.innerHeight + 1;
+    }
+    const map = doc.querySelector('.leaflet-map');
+    let mapWheelEvents = 0;
+    map.addEventListener('wheel', () => mapWheelEvents++);
+    panel.dispatchEvent(new win.WheelEvent('wheel', { deltaY: 100, bubbles: true }));
+    const sidebarWheelIsolated = mapWheelEvents === 0;
+    map.dispatchEvent(new win.WheelEvent('wheel', { deltaY: 100, bubbles: true }));
+    const mapReceivesWheel = mapWheelEvents === 1;
+    const noHorizontalOverflow = doc.documentElement.scrollWidth <= doc.documentElement.clientWidth;
+    results.push({ width, theme, reportScrolls, lastReportReachable, pulseReachable, keyboardFocusable, mobileDrawerHiddenWhenClosed, noNestedReportScrollbar, noNestedCoverageScrollbar, sidebarWheelIsolated, mapReceivesWheel, noHorizontalOverflow });
+    frame.remove();
+  }
+}
+document.getElementById('results').textContent = JSON.stringify(results, null, 2);
+document.title = results.every((result) => Object.entries(result).every(([key, value]) => ['width', 'theme'].includes(key) || value === true)) ? 'SCROLL CHECKS PASS' : 'SCROLL CHECKS FAIL';
+</script></body></html>

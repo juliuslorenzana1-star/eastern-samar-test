@@ -1,4 +1,47 @@
 /* The coastal atlas shares the entry sequence's ink, mangrove and sand palette. */
+.view-loading { display: grid; justify-items: center; gap: 12px; margin: 24px 28px; padding: 64px 20px; border-block: 1px solid var(--line); color: var(--muted); }
+.volunteer-welcome p, .volunteer-meta, .volunteer-card-footer, .volunteer-filter, .volunteer-metric small, .volunteer-group-empty { font-size: 12px; line-height: 1.5; }
+.volunteer-metric small { white-space: normal; overflow: visible; }
+.volunteer-metric strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.volunteer-filter select, .volunteer-search input { min-height: 44px; font-size: 13px; }
+.volunteer-card-actions .volunteer-action, .volunteer-welcome .primary-button { min-height: 44px; font-size: 12px; }
+.volunteer-card-footer .volunteer-report-link { font-size: 12px; min-height: 36px; }
+.volunteer-tabs button { min-height: 44px; font-size: 13px; }
+.volunteer-detail-content p, .volunteer-detail-content li, .volunteer-modal .volunteer-meta { font-size: 13px; line-height: 1.6; }
+.volunteer-detail-content h4 { font-size: 14px; }
+.map-stage .map-location { color: var(--ink); background: var(--paper); border-color: var(--line); box-shadow: none; border-radius: 2px; backdrop-filter: none; }
+.map-stage .map-hud, .map-stage .map-legend { backdrop-filter: none; }
+.map-stage .legend-item { font-size: 11px; line-height: 1.4; }
+.map-stage .legend-item b { font-size: 11px; }
+@media (max-width: 620px) { .volunteer-filter select, .volunteer-search input { font-size: 16px; } }
+.view-loading strong { font-size: 16px; color: var(--ink); }
+.view-loading span { font-size: 13px; }
+.report-form-section { min-width: 0; display: grid; gap: 12px; margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--line); }
+.report-form-section legend { padding: 0 12px 0 0; font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: var(--ink); }
+.report-form-section legend span { margin-right: 8px; color: var(--gold); font-family: 'Courier New', monospace; font-size: 12px; }
+.report-modal .field-label { gap: 6px; font-size: 13px; line-height: 1.5; color: var(--ink); }
+.report-modal .field-hint, .report-modal .optional-label { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.report-modal .form-row { min-width: 0; align-items: start; }
+.report-modal input, .report-modal select, .report-modal textarea { max-width: 100%; min-width: 0; border-radius: 2px; border-color: var(--line); }
+.report-modal .modal-intro { font-size: 13px; line-height: 1.6; }
+.report-modal .modal-foot { flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.report-modal .modal-foot > span { max-width: none; font-size: 12px; line-height: 1.5; }
+.report-modal .location-select-row { flex-wrap: wrap; gap: 10px; border-radius: 2px; background: var(--canvas); border-color: var(--line); }
+.report-modal .location-select-copy { min-width: 140px; flex: 1; }
+.report-modal .location-select-copy strong { color: var(--ink); font-size: 13px; }
+.report-modal .location-select-copy > span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.report-modal .evidence-preview { max-width: 100%; max-height: 180px; object-fit: contain; }
+.pulse-details { min-width: 0; }
+.pulse-details > summary { padding: 6px 0; min-height: 36px; color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; }
+.pulse-details > .pulse-block { margin-top: 10px; }
+.pulse-details > summary:focus-visible { outline: 2px solid var(--forest); outline-offset: 3px; }
+.primary-navigation button, .outline-button, .theme-option { transition: color 150ms ease, border-color 150ms ease, background 150ms ease; }
+.theme-option { min-width: 36px; min-height: 36px; }
+@media (max-width: 620px) {
+  .report-modal .form-row { grid-template-columns: 1fr; }
+  .report-modal .modal-foot .primary-button { width: 100%; min-height: 44px; font-size: 13px; }
+  .report-modal .location-select-row .outline-button { min-height: 44px; }
+}
 .welcome-toast { pointer-events: none; max-width: calc(100vw - 32px); }
 .welcome-toast strong, .welcome-toast small { display: block; }
 .welcome-toast small { margin-top: 5px; font-size: 11px; font-weight: 400; }
@@ -140,4 +183,67 @@
   .map-location-copy small { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .map-topline { gap: 5px; padding-inline: 8px; }
   .map-tool-button { padding-inline: 8px; font-size: 10px; }
+}
+
+/* One scroll owner per information panel; Leaflet keeps its own gestures. */
+.workspace { grid-template-rows: minmax(0, 1fr); }
+.workspace .report-panel {
+  display: block;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) var(--paper);
+  touch-action: pan-y pinch-zoom;
+}
+.workspace .report-panel > .panel-heading {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 14px 16px 12px;
+  background: var(--paper);
+}
+.workspace .panel-heading h2 { font-size: 17px; line-height: 1.35; }
+.workspace .report-list {
+  flex: none;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+.workspace .report-card { padding: 12px 16px; min-height: 100px; }
+.workspace .report-card-topline { align-items: start; }
+.workspace .report-title, .workspace .report-place { overflow-wrap: anywhere; }
+.workspace .report-place { white-space: normal; line-height: 1.4; }
+.workspace .panel-footer { flex-wrap: wrap; padding-block: 8px; }
+.pulse {
+  min-height: 0;
+  max-height: min(60dvh, 560px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  grid-auto-rows: max-content;
+  align-content: start;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) var(--canvas);
+  touch-action: pan-y pinch-zoom;
+}
+.pulse .pulse-coverage { max-height: none; overflow: visible; }
+.pulse .pulse-header h3 { font-size: 16px; }
+.pulse .pulse-copy strong { font-size: 20px; }
+.report-panel:focus-visible, .pulse:focus-visible { outline: 2px solid var(--forest); outline-offset: -2px; }
+@media (max-width: 900px) {
+  .workspace.panel-open .report-panel {
+    position: fixed;
+    inset: 72px auto 0 0;
+    width: min(390px, 100vw);
+    height: calc(100dvh - 72px);
+    max-height: calc(100dvh - 72px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .workspace:not(.panel-open) .report-panel { display: none; }
+  /* Let scrolling chain to the page at panel edges; no touch traps. */
+  .pulse { max-height: none; overflow: visible; scrollbar-gutter: auto; }
 }

@@ -18,9 +18,23 @@ export default function ThemeToggle({ mode, onChange }) {
             type="button"
             role="radio"
             aria-checked={active}
+            tabIndex={active ? 0 : -1}
             title={`${labels[option]} theme`}
             className={`theme-option${active ? ' is-active' : ''}`}
             onClick={() => onChange(option)}
+            onKeyDown={(event) => {
+              const index = themeModes.indexOf(option);
+              let next;
+              if (['ArrowRight', 'ArrowDown'].includes(event.key)) next = themeModes[(index + 1) % themeModes.length];
+              else if (['ArrowLeft', 'ArrowUp'].includes(event.key)) next = themeModes[(index + themeModes.length - 1) % themeModes.length];
+              else if (event.key === 'Home') next = themeModes[0];
+              else if (event.key === 'End') next = themeModes[themeModes.length - 1];
+              if (next) {
+                event.preventDefault();
+                onChange(next);
+                event.currentTarget.parentElement.children[themeModes.indexOf(next)]?.focus();
+              }
+            }}
           >
             <Icon size={13} />
             <span>{labels[option]}</span>
