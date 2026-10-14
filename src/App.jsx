@@ -68,6 +68,8 @@ function App() {
   const [reports, setReports] = useState([]);
   const [queue, setQueue] = useState([]);
   const [myReports, setMyReports] = useState([]);
+  const [myReportsError, setMyReportsError] = useState('');
+  const [myReportsRetrying, setMyReportsRetrying] = useState(false);
   const [showSubmissions, setShowSubmissions] = useState(false);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(Boolean(supabase));
@@ -170,6 +172,7 @@ function App() {
         setProfile(null);
         setProfiles([]);
         setMyReports([]);
+        setMyReportsError('');
         setShowSubmissions(false);
         setView('map');
       }
@@ -199,8 +202,8 @@ function App() {
         if (!active) return;
         if (reportResult.status === 'fulfilled') setReports(reportResult.value);
         if (categoryResult.status === 'fulfilled') setCategories(categoryResult.value);
-        if (myResult.status === 'fulfilled') setMyReports(myResult.value);
-        else { setMyReports([]); setNotice('Your submissions could not be loaded. Public exploration is still available. Try refreshing later.'); }
+        if (myResult.status === 'fulfilled') { setMyReports(myResult.value); setMyReportsError(''); }
+        else { setMyReportsError(myResult.reason?.message || 'Your submissions could not be loaded. Please try again.'); }
         setLoadError(reportResult.status === 'rejected' || categoryResult.status === 'rejected' ? 'Community reports or categories could not be loaded. Check your connection and try again.' : '');
       })
       .catch((error) => { if (active) setLoadError(error.message || 'We could not load community reports.'); })
@@ -276,6 +279,7 @@ function App() {
     ]);
     setReports(publicData);
     setMyReports(myData);
+    setMyReportsError('');
     setQueue(queueData);
   }
 
@@ -306,6 +310,7 @@ function App() {
     // A successful insert must never be presented as a failed submission when
     // a subsequent refresh fails: retrying would create a second report.
     setMyReports((current) => [report, ...current.filter(({ id }) => id !== report.id)]);
+    setMyReportsError('');
     let refreshWarning = '';
     try { await reloadReports(); } catch { refreshWarning = ' Report saved, but the list could not refresh. Please refresh later to see updates.'; }
     // The new report is not on the public map yet, so do not focus it there —
@@ -356,6 +361,14 @@ function App() {
     let name = '';
     try { name = (await fetchProfile(user.id))?.display_name?.trim().split(/\s+/)[0] || ''; } catch { /* Use a neutral greeting when the profile is unavailable. */ }
     setWelcomeMessage(name ? `Welcome back, ${name}!` : 'Welcome back!');
+  }
+
+  async function retryMyReports() {
+    if (!sessionUserId || myReportsRetrying) return;
+    setMyReportsRetrying(true);
+    try { setMyReports(await fetchMyReports(sessionUserId)); setMyReportsError(''); }
+    catch (error) { setMyReportsError(error.message); }
+    finally { setMyReportsRetrying(false); }
   }
 
   const activeNavigation = view === 'volunteers' || view === 'review' ? view : showSubmissions ? 'profile' : navigationTarget;
@@ -434,7 +447,7 @@ function App() {
             <label className="filter-select"><CalendarDays size={14} /><select value={dateRange} onChange={(event) => setDateRange(event.target.value)} aria-label="Filter by date"><option value="all">Any time</option><option value="7">Past 7 days</option><option value="30">Past 30 days</option><option value="90">Past 90 days</option></select><ChevronDown size={13} /></label>
           </div>
           <div className="list-toolbar"><span>{listCountLabel}</span>{sessionUserId && <button className={`sort-button${showSubmissions ? ' is-active' : ''}`} onClick={() => setShowSubmissions((open) => !open)}><Inbox size={13} /> {showSubmissions ? 'Community feed' : submissionsLabel}</button>}<button className="sort-button" onClick={() => setReports((current) => [...current].sort((first, second) => second.created_at.localeCompare(first.created_at)))}><ArrowDownUp size={13} /> Recent</button></div>
-          <div className="report-list">{loading ? <div className="empty-state"><Search size={22} /><strong>Loading reports…</strong></div> : showSubmissions ? (myReports.length ? myReports.map((report) => <ReportRow key={report.id} report={report} theme={theme} decision={decisionText(report)} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Inbox size={22} /><strong>No submissions yet</strong><span>Reports you send appear here with their review status.</span></div>) : filtered.length ? filtered.map((report) => <ReportRow key={report.id} report={report} theme={theme} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Search size={22} /><strong>No reports yet</strong><span>Approved community reports will appear here.</span></div>}</div>
+          <div className="report-list">{loading ? <div className="empty-state"><Search size={22} /><strong>Loading reports…</strong></div> : showSubmissions ? (myReportsError ? <div className="empty-state" role="alert"><Inbox size={22} /><strong>Submission history unavailable</strong><span>{myReportsError}</span><button className="outline-button" disabled={myReportsRetrying} onClick={retryMyReports}>{myReportsRetrying ? 'Trying again…' : 'Try again'}</button></div> : myReports.length ? myReports.map((report) => <ReportRow key={report.id} report={report} theme={theme} decision={decisionText(report)} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Inbox size={22} /><strong>No submissions yet</strong><span>Reports you send appear here with their review status.</span></div>) : filtered.length ? filtered.map((report) => <ReportRow key={report.id} report={report} theme={theme} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Search size={22} /><strong>No reports yet</strong><span>Approved community reports will appear here.</span></div>}</div>
           <div className="panel-footer"><span><Users size={15} /> Built with community input</span><button className="footer-link" onClick={() => setNotice('Community reports are visible only after authorized review. Verification is not government endorsement.')}><ShieldCheck size={14} /> Review standards</button></div>
         </aside>
         <ProvinceMap
@@ -495,6 +508,14 @@ function App() {
     {formOpen && authMode && isSupabaseConfigured && <AuthDialog supabase={supabase} initialMode={authMode} onNotice={setNotice} onAuthenticated={welcomeAfterLogin} onClose={() => { setFormOpen(false); setAuthMode(null); }} />}
     {(formOpen || picking) && !authMode && <ReportDialog categories={categories} onClose={() => { setFormOpen(false); setPicking(false); }} onSubmit={submitReport} onPickLocation={startPicking} location={location} hidden={picking} />}
     <footer className="site-footer"><span><HeartPulse size={14} /> A community-powered view of Eastern Samar</span><span>{isSupabaseConfigured ? 'Shared reports · moderation required' : 'Demo mode · map ready for live data'}</span></footer>
+    <nav className="mobile-bottom-nav" aria-label="Mobile community navigation">
+      <button aria-current={activeNavigation === 'map' ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={20} /><span>Map</span></button>
+      <button aria-current={activeNavigation === 'reports' ? 'page' : undefined} onClick={() => navigate('reports')}><Inbox size={20} /><span>Reports</span></button>
+      <button onClick={() => navigate('report')}><Plus size={21} /><span>Submit</span></button>
+      <button aria-current={view === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={20} /><span>Volunteer</span></button>
+      <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={20} /><span>Profile</span></button>
+      {isStaff && <button aria-current={view === 'review' ? 'page' : undefined} onClick={() => navigate('review')}><Layers3 size={20} /><span>Staff</span></button>}
+    </nav>
   </main>;
 }
 

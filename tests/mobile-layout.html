@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Mobile checks running</title></head><body><pre id="results">Running…</pre><script type="module">
+const results = [], wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+for (const [width, height] of [[320,640],[375,812],[390,844],[430,932],[568,320],[844,390],[768,1024],[1024,768]]) {
+  for (const theme of ['light','dark']) {
+    const frame = document.createElement('iframe'); frame.style.cssText = `width:${width}px;height:${height}px;display:block;border:0`; frame.src = '/'; document.body.append(frame);
+    await new Promise((resolve) => frame.onload = resolve);
+    const win = frame.contentWindow, doc = frame.contentDocument;
+    for (let i=0;i<80 && !doc.querySelector('.pulse');i++) await wait(100);
+    doc.querySelector('.entry-footer button')?.click(); await wait(100);
+    doc.documentElement.dataset.theme = theme;
+    const checks = { width, height, theme };
+    const phone = width <= 620 || (width <= 900 && height <= 480);
+    checks.noHorizontalOverflow = doc.documentElement.scrollWidth <= doc.documentElement.clientWidth;
+    const nav = doc.querySelector('.mobile-bottom-nav');
+    checks.correctNavigation = (win.getComputedStyle(nav).display !== 'none') === phone;
+    if (phone) {
+      checks.primaryTouchTargets = [...nav.querySelectorAll('button')].every((button) => button.getBoundingClientRect().height >=44 && button.getBoundingClientRect().width >=44);
+      checks.threeInitialPulseMetrics = doc.querySelectorAll('.pulse-tile').length ===3;
+      doc.querySelector('.pulse-expand').click(); await wait(30);
+      checks.sixExpandedPulseMetrics = doc.querySelectorAll('.pulse-tile').length ===6;
+      checks.pulseDetailsAvailable = !doc.querySelector('.pulse-details').hidden;
+      const toolbar = doc.querySelector('.mobile-map-toolbar');
+      checks.mapLegendHidden = win.getComputedStyle(doc.querySelector('.map-legend')).display ==='none';
+      toolbar.querySelector('button').click(); await wait(250);
+      const sheet = doc.querySelector('.category-sheet');
+      // Measure the settled sheet rather than a compositor animation frame.
+      sheet?.getAnimations().forEach((animation) => animation.finish());
+      checks.sheetFitsViewport = !!sheet && sheet.getBoundingClientRect().top >=0 && sheet.getBoundingClientRect().bottom <=height+1;
+      checks.sheetScrollContainer = win.getComputedStyle(doc.querySelector('.category-sheet-options')).overflowY ==='auto';
+      checks.sheetLocksBackground = doc.body.style.overflow ==='hidden';
+      const categoryOption = doc.querySelectorAll('.category-sheet-options button')[1];
+      if (categoryOption) {
+        categoryOption.click(); await wait(30);
+        checks.categorySelectionIsDraft = !toolbar.querySelector('b');
+        doc.querySelector('.category-sheet footer .primary-button').click(); await wait(40);
+        checks.categoryApplyShowsActiveCount = toolbar.querySelector('b')?.textContent === '1';
+        toolbar.querySelector('button').click(); await wait(40);
+        doc.querySelectorAll('.category-sheet-options button')[1].click(); await wait(30);
+        checks.categoryCanBeDeselected = doc.querySelector('.category-sheet-options button').getAttribute('aria-pressed') === 'true';
+      }
+      doc.querySelector('.category-sheet footer .outline-button').click();
+      doc.querySelector('.category-sheet footer .primary-button').click(); await wait(40);
+      checks.applyClosesSheet = !doc.querySelector('.category-sheet');
+      checks.clearRemovesActiveCount = !toolbar.querySelector('b');
+      checks.sheetRestoresPageScroll = doc.body.style.overflow !=='hidden';
+      const gesture = toolbar.querySelector('button:last-child'); gesture.click(); await wait(30);
+      checks.moveMapEnabled = doc.querySelector('.map-stage').classList.contains('is-touch-active');
+      gesture.click(); await wait(30);
+      checks.pageScrollModeRestored = !doc.querySelector('.map-stage').classList.contains('is-touch-active');
+      nav.querySelectorAll('button')[1].click(); await wait(80);
+      const panel = doc.querySelector('.report-panel'), bounds = panel.getBoundingClientRect();
+      checks.drawerAboveNavigation = bounds.bottom <=nav.getBoundingClientRect().top+1;
+      checks.drawerScrollable = win.getComputedStyle(panel).overflowY ==='auto';
+      nav.querySelectorAll('button')[0].click(); await wait(40);
+      checks.mapNavigationClosesDrawer = win.getComputedStyle(panel).display ==='none';
+      nav.querySelectorAll('button')[4].click(); await wait(100);
+      const auth = doc.querySelector('.auth-modal');
+      checks.authFitsViewport = !auth || (auth.getBoundingClientRect().top>=0 && auth.getBoundingClientRect().bottom<=height+1);
+      auth?.querySelector('.icon-button')?.click();
+    } else {
+      checks.desktopMetricsPreserved = doc.querySelectorAll('.pulse-tile').length===6;
+      checks.desktopLegendPreserved = win.getComputedStyle(doc.querySelector('.map-legend')).display!=='none';
+    }
+    results.push(checks); frame.remove();
+  }
+}
+document.getElementById('results').textContent=JSON.stringify(results,null,2);
+document.title=results.every((result)=>Object.entries(result).every(([key,value])=>['width','height','theme'].includes(key)||value===true))?'MOBILE CHECKS PASS':'MOBILE CHECKS FAIL';
+</script></body></html>

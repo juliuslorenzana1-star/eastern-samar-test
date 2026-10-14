@@ -15,6 +15,7 @@ for (const [width, height] of [[360, 640], [768, 1024], [1440, 900]]) {
     const win = frame.contentWindow, doc = frame.contentDocument;
     for (let attempt = 0; attempt < 80 && !doc.querySelector('.report-panel'); attempt++) await wait(100);
     doc.querySelector('.entry-footer button')?.click();
+    doc.querySelector('.pulse-expand')?.click();
     await wait(100);
     doc.documentElement.dataset.theme = theme;
     const panel = doc.querySelector('.report-panel'), pulse = doc.querySelector('.pulse');

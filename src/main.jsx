@@ -5,6 +5,7 @@ import './styles.css';
 import App from './App.jsx';
 import CinematicEntry from './components/CinematicEntry.jsx';
 import './atlas.css';
+import './mobile.css';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

@@ -91,22 +91,30 @@ export async function fetchPublicReports() {
 
 // A signed-in resident reading their own submissions.
 //
-// This deliberately does NOT use `.eq('reporter_id', userId)`. The initial
-// migration grants SELECT on public.reports one column at a time and reporter_id
-// is not in that list, and PostgreSQL checks SELECT privileges for columns named
-// in WHERE as well as in the select list. Filtering on reporter_id from the client
-// therefore fails with 42501 "permission denied for table reports" before RLS is
-// consulted -- a privilege error, which is why the message says "permission denied
-// for table" rather than the usual RLS empty result. my_reports() applies the
-// auth.uid() filter inside the database as the table owner instead, so the client
-// never has to name the column and only ever receives its own rows.
+// Prefer the RPC, which filters by auth.uid() server-side. Older databases may
+// have the authenticated reporter_id grant but not the RPC. The compatibility
+// query below always filters ownership; it never asks for all unpublished rows.
 export async function fetchMyReports(userId) {
   if (!supabase || !userId) return [];
   const { data: own, error: rpcError } = await supabase.rpc('my_reports');
   if (!rpcError) return own ?? [];
 
-  // Fail closed: a staff-wide unpublished query cannot identify ownership.
-  throw new Error('Your submissions could not be loaded. Please try again later; the my_reports database function must be available.');
+  if (!['PGRST202', '42883', '42501'].includes(rpcError.code)) {
+    throw new Error('Your submissions could not be loaded. Check your connection and try again.');
+  }
+  const query = (columns) => supabase.from('reports').select(columns)
+    .eq('reporter_id', userId).order('created_at', { ascending: false }).limit(100);
+  let { data, error } = await query(`${reportColumns},decision_note,reviewed_at`);
+  if (error && ['42703', 'PGRST204'].includes(error.code)) {
+    ({ data, error } = await query(reportColumns));
+  }
+  if (error) {
+    if (['42501', 'PGRST202'].includes(error.code)) {
+      throw new Error('Submission history needs a database setup repair: the my_reports function is unavailable and the owner-filtered lookup is not permitted. Your saved reports have not been deleted.');
+    }
+    throw new Error('Your submissions could not be loaded. Check your connection and try again.');
+  }
+  return data ?? [];
 }
 
 // The moderation queue. Returns every report the caller is allowed to see, which

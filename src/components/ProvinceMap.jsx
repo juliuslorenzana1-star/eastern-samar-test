@@ -3,6 +3,8 @@ import { GeoJSON, MapContainer, Marker, Polygon, Popup, TileLayer, useMap, useMa
 import { divIcon } from 'leaflet';
 import { CalendarDays, Compass, Crosshair, Layers3, MapPin, Minus, Plus, Users } from 'lucide-react';
 import easternSamarBoundary from '../assets/eastern-samar-boundary.json';
+import CategorySheet from './CategorySheet.jsx';
+import usePhoneLayout from '../lib/useMediaQuery.js';
 import {
   BASEMAPS, PROVINCE, categoryGlyphMarkup, categoryVisual, hasCoordinates, isReviewed,
 } from '../lib/place.js';
@@ -69,6 +71,16 @@ function ClickCapture({ enabled, onPick }) {
   return null;
 }
 
+function MapGestures({ mobile, enabled }) {
+  const map = useMap();
+  useEffect(() => {
+    for (const handler of [map.dragging, map.touchZoom, map.scrollWheelZoom, map.doubleClickZoom]) {
+      if (!mobile || enabled) handler.enable(); else handler.disable();
+    }
+  }, [map, mobile, enabled]);
+  return null;
+}
+
 export default function ProvinceMap({
   reports, theme, categories, counts, category, onCategory, area, selected, onSelect,
   focus, picking, onPick, onCancelPick, pickLocation, onStartReport, detail, mappedCount,
@@ -77,6 +89,9 @@ export default function ProvinceMap({
   const mapRef = useRef(null);
   const [legendOpen, setLegendOpen] = useState(true);
   const [roadsVisible, setRoadsVisible] = useState(false);
+  const mobile = usePhoneLayout();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [touchActive, setTouchActive] = useState(false);
   const handleReady = useCallback((instance) => { mapRef.current = instance; }, []);
   const basemap = BASEMAPS[theme] ?? BASEMAPS.light;
   const provinceMask = useMemo(() => {
@@ -102,7 +117,7 @@ export default function ProvinceMap({
   }
 
   return (
-    <section className="map-stage" id="explore-map" aria-label="Map of Eastern Samar">
+    <section className={`map-stage${mobile && touchActive ? ' is-touch-active' : ''}`} id="explore-map" aria-label="Map of Eastern Samar">
       <div className="map-topline">
         <div className="map-location">
           <span className="map-location-mark"><Crosshair size={14} /></span>
@@ -164,6 +179,7 @@ export default function ProvinceMap({
           }}
         />
         <MapHandle onReady={handleReady} />
+        <MapGestures mobile={mobile} enabled={touchActive} />
         <ProvinceViewport focus={focus} />
         <ClickCapture enabled={picking} onPick={onPick} />
         {pickLocation && (
@@ -213,6 +229,11 @@ export default function ProvinceMap({
         </div>
       )}
 
+      {mobile && <div className="mobile-map-toolbar">
+        <button onClick={() => setSheetOpen(true)} aria-haspopup="dialog" aria-expanded={sheetOpen}><Layers3 size={17} />Categories{category !== 'all' && <b aria-label="1 active category filter">1</b>}</button>
+        <button aria-pressed={touchActive} onClick={() => setTouchActive((active) => !active)}><Crosshair size={17} />{touchActive ? 'Done moving' : 'Move map'}</button>
+      </div>}
+      {mobile && sheetOpen && <CategorySheet categories={categories} counts={counts} category={category} theme={theme} onApply={onCategory} onClose={() => setSheetOpen(false)} />}
       <div className="map-legend">
         <div className="legend-head">
           <span><Layers3 size={12} /> Concern categories</span>
