@@ -144,11 +144,14 @@ export async function fetchReportCategories() {
 
 export async function fetchProfile(userId) {
   if (!supabase || !userId) return null;
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id,display_name,role,show_on_leaderboard')
-    .eq('id', userId)
-    .single();
+  const query = (columns) => supabase.from('profiles').select(columns)
+    .eq('id', userId).single();
+  let { data, error } = await query('id,display_name,role,show_on_leaderboard');
+  // Older profiles schemas lack the optional leaderboard preference. Keep the
+  // owner filter and staff role lookup without inventing that preference.
+  if (error && ['42703', 'PGRST204'].includes(error.code)) {
+    ({ data, error } = await query('id,display_name,role'));
+  }
   if (error) throw error;
   return data;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { AlertTriangle, Check, Clock3, FileText, MapPin, Search, ShieldCheck, X } from 'lucide-react';
 import { formatStatus, publicReportStatuses, reportPriorities, reportStatuses } from '../lib/reports.js';
 import { MUNICIPALITIES } from '../lib/place.js';
@@ -52,11 +52,12 @@ function ScreeningAdvisory({ loading, error, review }) {
   </>;
 }
 
-export default function ModeratorDashboard({ reports, categories, profiles, isAdmin, onModerate, onChangeRole, onLoadEvidence, onLoadAIReview, onCreateVolunteerOpportunity, onUpdateVolunteerOpportunity, onLoadVolunteerManagement, onLoadVolunteerRegistrations, onUpdateVolunteerRegistration, onUpdateVolunteerOpportunityStatus, onSetVolunteerRegistrationOpen }) {
+export default function ModeratorDashboard({ reports, initialReportId = null, categories, profiles, isAdmin, currentUserId, onModerate, onChangeRole, onLoadEvidence, onLoadAIReview, onCreateVolunteerOpportunity, onUpdateVolunteerOpportunity, onLoadVolunteerManagement, onLoadVolunteerRegistrations, onUpdateVolunteerRegistration, onUpdateVolunteerOpportunityStatus, onSetVolunteerRegistrationOpen }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [selected, setSelected] = useState(null);
+  const initialReportRequest = useRef({ id: null, opened: false });
   const [nextStatus, setNextStatus] = useState('under_review');
   const [nextPriority, setNextPriority] = useState('normal');
   const [note, setNote] = useState('');
@@ -138,6 +139,25 @@ export default function ModeratorDashboard({ reports, categories, profiles, isAd
       setAIReviewLoading(false);
     }
   }
+
+  const openInitialReport = useEffectEvent((reportId) => {
+    if (initialReportRequest.current.id !== reportId || initialReportRequest.current.opened) return;
+    const report = reports.find((item) => item.id === reportId);
+    if (!report) return;
+    initialReportRequest.current.opened = true;
+    void openReport(report);
+  });
+
+  useEffect(() => {
+    if (initialReportRequest.current.id !== initialReportId) {
+      initialReportRequest.current = { id: initialReportId, opened: false };
+    }
+    if (!initialReportId || initialReportRequest.current.opened) return;
+    // Cleanup cancels StrictMode's first setup. Refreshing the queue after a
+    // saved review does not reopen a request that has already been handled.
+    const timeout = setTimeout(() => openInitialReport(initialReportId), 0);
+    return () => clearTimeout(timeout);
+  }, [initialReportId, reports]);
 
   const needsResidentReason = nextStatus === 'rejected' || nextStatus === 'needs_more_information';
 
@@ -247,6 +267,10 @@ export default function ModeratorDashboard({ reports, categories, profiles, isAd
   }
 
   async function saveVolunteerAttendance(registration) {
+    if (registration.volunteer_id === currentUserId) {
+      setManagementMessage('Another staff member must verify your attendance and hours.');
+      return;
+    }
     const draft = attendanceDrafts[registration.id] ?? {};
     setManagementBusy(true);
     setManagementMessage('');
@@ -437,11 +461,12 @@ export default function ModeratorDashboard({ reports, categories, profiles, isAd
           {managementBusy && !managedRegistrations.length ? <p>Loading registrations…</p>
             : managedRegistrations.length ? managedRegistrations.map((registration) => {
               const draft = attendanceDrafts[registration.id] ?? { status: registration.status, volunteerHours: registration.volunteer_hours ?? '' };
+              const ownRegistration = registration.volunteer_id === currentUserId;
               return <div className="volunteer-registrant-row" key={registration.id}>
-                <span><strong>{registration.volunteer?.display_name || registration.volunteer_id.slice(0, 8)}</strong><small>Joined {new Date(registration.joined_at).toLocaleDateString('en-PH')}</small></span>
-                <label>Status<select value={draft.status} onChange={(event) => setAttendanceDrafts((current) => ({ ...current, [registration.id]: { ...draft, status: event.target.value } }))}><option value="registered">Registered</option><option value="attended">Attended</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No show</option></select></label>
-                <label>Hours<input type="number" min="0" step="0.25" value={draft.volunteerHours} onChange={(event) => setAttendanceDrafts((current) => ({ ...current, [registration.id]: { ...draft, volunteerHours: event.target.value } }))} /></label>
-                <button type="button" className="outline-button" disabled={managementBusy} onClick={() => saveVolunteerAttendance(registration)}>Save</button>
+                <span><strong>{registration.volunteer?.display_name || registration.volunteer_id.slice(0, 8)}</strong><small>Joined {new Date(registration.joined_at).toLocaleDateString('en-PH')}</small>{ownRegistration && <small>Another staff member must verify your attendance and hours.</small>}</span>
+                <label>Status<select disabled={managementBusy || ownRegistration} value={draft.status} onChange={(event) => setAttendanceDrafts((current) => ({ ...current, [registration.id]: { ...draft, status: event.target.value } }))}><option value="registered">Registered</option><option value="attended">Attended</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No show</option></select></label>
+                <label>Hours<input disabled={managementBusy || ownRegistration} type="number" min="0" step="0.25" value={draft.volunteerHours} onChange={(event) => setAttendanceDrafts((current) => ({ ...current, [registration.id]: { ...draft, volunteerHours: event.target.value } }))} /></label>
+                <button type="button" className="outline-button" disabled={managementBusy || ownRegistration} onClick={() => saveVolunteerAttendance(registration)}>Save</button>
               </div>;
             }) : <div className="volunteer-manager-empty"><strong>No volunteers have registered yet.</strong><span>Registrations will appear here when residents join.</span></div>}
         </div>
