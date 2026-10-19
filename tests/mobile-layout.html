@@ -58,7 +58,9 @@ for (const [width, height] of [[320,640],[375,812],[390,844],[430,932],[568,320]
       checks.authFitsViewport = !auth || (auth.getBoundingClientRect().top>=0 && auth.getBoundingClientRect().bottom<=height+1);
       auth?.querySelector('.icon-button')?.click();
     } else {
-      checks.desktopMetricsPreserved = doc.querySelectorAll('.pulse-tile').length===6;
+      checks.desktopMetricsSimplified = doc.querySelectorAll('.pulse-tile').length===3;
+      doc.querySelector('.pulse-expand').click(); await wait(30);
+      checks.desktopExtraMetricsAvailable = doc.querySelectorAll('.pulse-tile').length===6;
       checks.desktopLegendPreserved = win.getComputedStyle(doc.querySelector('.map-legend')).display!=='none';
     }
     results.push(checks); frame.remove();

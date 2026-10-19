@@ -10,6 +10,7 @@ import ProvincePulse from './components/ProvincePulse.jsx';
 import ReportDialog from './components/ReportDialog.jsx';
 import ReportDetailCard from './components/ReportDetailCard.jsx';
 import ThemeToggle from './components/ThemeToggle.jsx';
+import { finishWelcome, needsWelcome } from './lib/onboarding.js';
 import { isSupabaseConfigured, supabase } from './lib/supabase.js';
 import {
   createReport, fetchAIReview, fetchMyReports, fetchProfile, fetchProfiles, fetchPublicReports,
@@ -31,6 +32,7 @@ import {
 
 const ModeratorDashboard = lazy(() => import('./components/ModeratorDashboard.jsx'));
 const VolunteerBoard = lazy(() => import('./components/VolunteerBoard.jsx'));
+const SmartEsteWelcome = lazy(() => import('./components/SmartEsteWelcome.jsx'));
 
 export function Status({ value, theme = 'light' }) {
   return <span className="status-pill" style={{ '--status-color': statusColor(value, theme) }}><i className="status-dot" />{formatStatus(value)}</span>;
@@ -95,7 +97,23 @@ function App() {
   const [volunteerMapData, setVolunteerMapData] = useState({ opportunities: [], signupCounts: {} });
   const [volunteerInitial, setVolunteerInitial] = useState(null);
   const [welcomeMessage, setWelcomeMessage] = useState('');
+  const [welcomeTour, setWelcomeTour] = useState(null);
   const sessionUserId = session?.user?.id;
+  // The signup metadata survives an email-confirmation redirect or a different
+  // device. Completion is remembered per account on this browser.
+  useEffect(() => {
+    const user = session?.user;
+    if (welcomeTour || formOpen || authMode === 'update' || !needsWelcome(user)) return undefined;
+    const entry = document.querySelector('.entry-application');
+    const show = () => {
+      if (entry?.hasAttribute('inert')) return;
+      setWelcomeTour({ userId: user.id, name: user.user_metadata?.display_name || '', needsConfirmation: false });
+    };
+    const observer = new MutationObserver(show);
+    if (entry) observer.observe(entry, { attributes: true, attributeFilter: ['inert'] });
+    show();
+    return () => observer.disconnect();
+  }, [session?.user, formOpen, authMode, welcomeTour]);
   const openedEmailLink = useRef('');
   const handleEmailLink = useEffectEvent(() => {
     const hash = window.location.hash.slice(1);
@@ -363,6 +381,25 @@ function App() {
     setWelcomeMessage(name ? `Welcome back, ${name}!` : 'Welcome back!');
   }
 
+  function closeWelcomeTour(destination) {
+    finishWelcome(welcomeTour?.userId);
+    setNotice('');
+    setWelcomeTour(null);
+    if (destination) window.requestAnimationFrame(() => navigate(destination));
+  }
+
+  function exploreWelcomeFeature(destination) {
+    setNotice('');
+    setWelcomeTour((current) => ({ ...current, exploring: true }));
+    window.requestAnimationFrame(() => navigate(destination));
+  }
+
+  function resumeWelcomeTour() {
+    setFormOpen(false);
+    setAuthMode(null);
+    setWelcomeTour((current) => ({ ...current, exploring: false }));
+  }
+
   async function retryMyReports() {
     if (!sessionUserId || myReportsRetrying) return;
     setMyReportsRetrying(true);
@@ -372,11 +409,12 @@ function App() {
   }
 
   const activeNavigation = view === 'volunteers' || view === 'review' ? view : showSubmissions ? 'profile' : navigationTarget;
+  const appliedFilterCount = [area, category, status, dateRange].filter((value) => value !== 'all').length;
 
   return <main className="app-shell">
     <a className="skip-link" href="#primary-navigation">Skip to navigation</a>
     <header className="topbar">
-      <a className="brand" href="#top" aria-label="Eastern Samar Community Action Map home"><span className="brand-mark"><img src={`${import.meta.env.BASE_URL}community-mark.svg`} width="40" height="40" alt="" /></span><span className="brand-copy"><strong>Eastern Samar</strong><span>COMMUNITY ACTION MAP</span></span></a>
+      <a className="brand" href="#top" aria-label="Eastern Samar Community Action Map home"><span className="brand-mark"><img src={`${import.meta.env.BASE_URL}community-mark.svg`} width="40" height="40" alt="" /></span><span className="brand-copy"><strong>SMART ESTE</strong><span>EASTERN SAMAR · COMMUNITY MAP</span></span></a>
       <div className="topbar-center"><i className="live-indicator" /> {area === 'all' ? 'Province-wide view' : area} <span className="topbar-divider">/</span> <span>{view === 'review' ? 'Moderation queue' : view === 'volunteers' ? 'Volunteer opportunities' : 'Community reports'}</span></div>
       <div className="topbar-actions">
         {!isSupabaseConfigured && <span className="demo-label"><i /> Demo mode</span>}
@@ -391,13 +429,11 @@ function App() {
     <nav className="primary-navigation" id="primary-navigation" aria-label="Community platform">
       <button aria-current={activeNavigation === 'map' ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={17} />Explore map</button>
       <button aria-current={activeNavigation === 'reports' ? 'page' : undefined} onClick={() => navigate('reports')}><Inbox size={17} />Community reports</button>
-      <button onClick={() => navigate('report')}><Plus size={17} />Submit a concern</button>
       <button aria-current={view === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={17} />Volunteer</button>
-      <button aria-current={activeNavigation === 'impact' ? 'page' : undefined} onClick={() => navigate('impact')}><Activity size={17} />Community impact</button>
       <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={17} />My submissions</button>
-      {isStaff && <button aria-current={view === 'review' ? 'page' : undefined} onClick={() => navigate('review')}><Layers3 size={17} />Administration</button>}
+      <details className="community-more"><summary>More <ChevronDown size={14} /></summary><div><button onClick={(event) => { event.currentTarget.closest('details').open = false; navigate('impact'); }}><Activity size={16} />Community impact</button>{isStaff && <><button onClick={(event) => { event.currentTarget.closest('details').open = false; navigate('review'); }}><Layers3 size={16} />Administration</button><a href={`${import.meta.env.BASE_URL}operations/`}><ShieldCheck size={16} />Operations workspace</a></>}</div></details>
     </nav>
-    <section className="dashboard-heading" id="top"><div className="heading-copy"><span className="eyebrow">EASTERN SAMAR · COMMUNITY ACTION MAP</span><h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'review' ? 'Review queue' : view === 'volunteers' ? 'Volunteer' : 'Eastern Samar Community Action Map'}</h1><p>{view === 'review' ? 'Review submissions and coordinate next steps.' : view === 'volunteers' ? 'Turn community needs into community action. Find local activities, lend your skills, and help make Eastern Samar stronger.' : 'Local action, reported needs, and community updates across Eastern Samar municipalities and barangays.'}</p></div>{view !== 'volunteers' && <div className="heading-meta"><div className="privacy-note"><ShieldCheck size={16} /><span>Community-reported<br /><strong>not official findings</strong></span></div><button className="text-button" onClick={() => setNotice('Public reports are visible only after authorized staff approve them. Private exact locations and evidence are restricted by database policies.')}><CircleHelp size={16} /> About this map</button></div>}</section>
+    <section className="dashboard-heading" id="top"><div className="heading-copy"><span className="eyebrow">OUR COAST. OUR COMMUNITIES.</span><h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'review' ? 'Make the next step count.' : view === 'volunteers' ? 'A little time. A local difference.' : 'Your community, in view.'}</h1><p>{view === 'review' ? 'Review concerns and help local action move forward.' : view === 'volunteers' ? 'Find an activity, lend your skills, and be part of something close to home.' : 'Explore local concerns. Find a place to help.'}</p></div>{view !== 'volunteers' && <div className="heading-meta"><span className="atlas-place-note"><MapPin size={16} />One city. Twenty-two municipalities.</span><button className="text-button" onClick={() => setNotice('Public reports are visible only after authorized staff approve them. Private exact locations and evidence are restricted by database policies.')}><CircleHelp size={16} /> About this map</button></div>}</section>
     {!session?.user && <section className="community-intro" aria-label="Eastern Samar project introduction">
       <div>
         <span className="eyebrow">BUILT FOR ESTEHANONS</span>
@@ -439,13 +475,14 @@ function App() {
               {placeMatches.length ? placeMatches.map((option) => <button type="button" key={`${option.type}-${option.label}`} className="place-chip" onClick={() => focusOnPlace(option)}><MapPin size={11} /> <span>{option.label}</span> <b>{option.count}</b></button>) : <span className="place-chip-empty">No place in the published reports matches “{query.trim()}” yet.</span>}
             </div>
           )}
-          <div className="filter-heading"><span><Filter size={14} /> Filters</span><button className="reset-button" onClick={clearFilters}>Reset</button></div>
+          <details className="report-filter-disclosure"><summary><Filter size={15} /><strong>Filter reports</strong><span>{appliedFilterCount ? `${appliedFilterCount} active` : 'Refine your view'}</span><ChevronDown size={14} /></summary><div className="filter-heading"><span>Find what matters to you</span><button className="reset-button" onClick={clearFilters}>Reset</button></div>
           <div className="filters-grid">
             <label className="filter-select"><MapPin size={14} /><select value={area} onChange={(event) => setArea(event.target.value)} aria-label="Filter by municipality"><option value="all">All municipalities</option>{MUNICIPALITIES.map((place) => <option key={place}>{place}</option>)}</select><ChevronDown size={13} /></label>
             <label className="filter-select"><Layers3 size={14} /><select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter by category"><option value="all">All categories</option>{categories.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select><ChevronDown size={13} /></label>
             <label className="filter-select"><Activity size={14} /><select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filter by status"><option value="all">All statuses</option>{statusOptions.map((item) => <option key={item} value={item}>{formatStatus(item)}</option>)}</select><ChevronDown size={13} /></label>
             <label className="filter-select"><CalendarDays size={14} /><select value={dateRange} onChange={(event) => setDateRange(event.target.value)} aria-label="Filter by date"><option value="all">Any time</option><option value="7">Past 7 days</option><option value="30">Past 30 days</option><option value="90">Past 90 days</option></select><ChevronDown size={13} /></label>
           </div>
+          </details>
           <div className="list-toolbar"><span>{listCountLabel}</span>{sessionUserId && <button className={`sort-button${showSubmissions ? ' is-active' : ''}`} onClick={() => setShowSubmissions((open) => !open)}><Inbox size={13} /> {showSubmissions ? 'Community feed' : submissionsLabel}</button>}<button className="sort-button" onClick={() => setReports((current) => [...current].sort((first, second) => second.created_at.localeCompare(first.created_at)))}><ArrowDownUp size={13} /> Recent</button></div>
           <div className="report-list">{loading ? <div className="empty-state"><Search size={22} /><strong>Loading reports…</strong></div> : showSubmissions ? (myReportsError ? <div className="empty-state" role="alert"><Inbox size={22} /><strong>Submission history unavailable</strong><span>{myReportsError}</span><button className="outline-button" disabled={myReportsRetrying} onClick={retryMyReports}>{myReportsRetrying ? 'Trying again…' : 'Try again'}</button></div> : myReports.length ? myReports.map((report) => <ReportRow key={report.id} report={report} theme={theme} decision={decisionText(report)} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Inbox size={22} /><strong>No submissions yet</strong><span>Reports you send appear here with their review status.</span></div>) : filtered.length ? filtered.map((report) => <ReportRow key={report.id} report={report} theme={theme} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Search size={22} /><strong>No reports yet</strong><span>Approved community reports will appear here.</span></div>}</div>
           <div className="panel-footer"><span><Users size={15} /> Built with community input</span><button className="footer-link" onClick={() => setNotice('Community reports are visible only after authorized review. Verification is not government endorsement.')}><ShieldCheck size={14} /> Review standards</button></div>
@@ -505,16 +542,17 @@ function App() {
     </Suspense>
     {notice && <div className="toast" role="status"><span><Check size={15} /></span>{notice}<button onClick={() => setNotice('')} aria-label="Dismiss message"><X size={14} /></button></div>}
     {welcomeMessage && <div className="welcome-toast" role="status"><span><Check size={13} /></span><div><strong>{welcomeMessage}</strong><small>Ready to make a difference in Eastern Samar?</small></div></div>}
-    {formOpen && authMode && isSupabaseConfigured && <AuthDialog supabase={supabase} initialMode={authMode} onNotice={setNotice} onAuthenticated={welcomeAfterLogin} onClose={() => { setFormOpen(false); setAuthMode(null); }} />}
+    {formOpen && authMode && isSupabaseConfigured && <AuthDialog supabase={supabase} initialMode={authMode} onNotice={setNotice} onAuthenticated={welcomeAfterLogin} onAccountCreated={(user, needsConfirmation) => { if (user?.id) setWelcomeTour({ userId: user.id, name: user.user_metadata?.display_name || '', needsConfirmation }); }} onClose={() => { setFormOpen(false); setAuthMode(null); }} />}
+    {welcomeTour && <Suspense fallback={null}><SmartEsteWelcome name={welcomeTour.name} needsConfirmation={welcomeTour.needsConfirmation} exploring={Boolean(welcomeTour.exploring)} onExplore={exploreWelcomeFeature} onResume={resumeWelcomeTour} onFinish={closeWelcomeTour} /></Suspense>}
     {(formOpen || picking) && !authMode && <ReportDialog categories={categories} onClose={() => { setFormOpen(false); setPicking(false); }} onSubmit={submitReport} onPickLocation={startPicking} location={location} hidden={picking} />}
-    <footer className="site-footer"><span><HeartPulse size={14} /> A community-powered view of Eastern Samar</span><span>{isSupabaseConfigured ? 'Shared reports · moderation required' : 'Demo mode · map ready for live data'}</span></footer>
+    <footer className="site-footer"><span><HeartPulse size={14} /> A community-powered view of Eastern Samar</span><button className="smart-tour-replay" type="button" onClick={() => setWelcomeTour({ userId: sessionUserId, name: profile?.display_name || '', needsConfirmation: false })}><Compass size={15} /> SMART ESTE tour</button><span>{isSupabaseConfigured ? 'Shared reports · moderation required' : 'Demo mode · map ready for live data'}</span></footer>
     <nav className="mobile-bottom-nav" aria-label="Mobile community navigation">
       <button aria-current={activeNavigation === 'map' ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={20} /><span>Map</span></button>
       <button aria-current={activeNavigation === 'reports' ? 'page' : undefined} onClick={() => navigate('reports')}><Inbox size={20} /><span>Reports</span></button>
       <button onClick={() => navigate('report')}><Plus size={21} /><span>Submit</span></button>
       <button aria-current={view === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={20} /><span>Volunteer</span></button>
       <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={20} /><span>Profile</span></button>
-      {isStaff && <button aria-current={view === 'review' ? 'page' : undefined} onClick={() => navigate('review')}><Layers3 size={20} /><span>Staff</span></button>}
+      {isStaff && <a href={`${import.meta.env.BASE_URL}operations/`}><Layers3 size={20} /><span>Operations</span></a>}
     </nav>
   </main>;
 }

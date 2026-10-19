@@ -11,6 +11,16 @@ npm run dev
 
 Open the local URL printed by Vite. OpenStreetMap tiles require an internet connection.
 
+## SMART ESTE welcome and tutorial
+
+The community interface centers the street map, with report filters and expanded community insights available on demand. Operations uses the same coastal palette, three primary indicators, a collapsible activity feed, and dedicated mobile navigation. Staff access remains protected by the existing account roles and database policies. Run `npm run test:interface:browser` against the local dev server to check responsive navigation, report filters/details, expandable statistics, operations navigation, and signed-out staff protection using intercepted fixtures only.
+
+New signups receive a SMART ESTE welcome animation and five guided steps: explore the map, submit a concern, track submissions, volunteer, and view community impact. Each step can open the corresponding app feature while keeping the tutorial in progress. A floating **Continue tutorial** control returns to the same step; feature links do not mark the tour complete. The tour can be skipped, navigated backward, or replayed using **SMART ESTE tour** in the footer. It supports keyboard focus trapping, scrolling on small screens, light/dark themes, and reduced motion.
+
+Signup attaches a `smart_este_welcome_version` presentation preference to Supabase user metadata. This is not used for authorization. The tutorial opens after successful signup, including when email confirmation is still required; a reminder explains that submitting reports and joining activities require confirmation and sign-in. The marker also lets the first confirmed session on another browser show the welcome. Completion/skip is remembered per account on the current browser. Existing accounts without the marker are not automatically enrolled and can use replay instead. No database migration or report data is needed.
+
+Run `npm run test:onboarding` for completion and eligibility checks. For local browser QA, start `npm run dev -- --port 5178`, then `npm run test:onboarding:browser`. The latter uses an installed Microsoft Edge browser through Playwright Core; `BROWSER_CHANNEL` can select another installed Chromium channel and `ONBOARDING_TEST_URL` can set a different local URL. Local `.env.local` must configure the existing Supabase client. Tests intercept every Supabase request and simulate signup responses; they never create live accounts, send confirmation emails, or modify live data. Results and screenshots are saved under gitignored `test-results.local/`.
+
 ## Backend
 
 The Supabase migrations define resident/moderator/admin roles, report categories and workflow, private exact locations and evidence, moderation history/notes, AI-review flags and runs, possible duplicate links, community projects, volunteer opportunities, signups, notifications, RLS policies, and the private `report-evidence` storage bucket. The initial platform migration has been applied to the `eastern-samar-test` Supabase project; apply newer migrations before deploying matching frontend/function code.

@@ -6,6 +6,7 @@ import App from './App.jsx';
 import CinematicEntry from './components/CinematicEntry.jsx';
 import './atlas.css';
 import './mobile.css';
+import './community-refresh.css';
 import { isOperationsPath } from './lib/routes.js';
 const OperationsCommand = React.lazy(() => import('./components/OperationsCommand.jsx'));
 

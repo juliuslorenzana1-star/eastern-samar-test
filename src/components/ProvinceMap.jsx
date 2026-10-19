@@ -86,8 +86,8 @@ export default function ProvinceMap({
   volunteerOpportunities = [], volunteerSignupCounts = {}, onVolunteerOpen,
 }) {
   const mapRef = useRef(null);
-  const [legendOpen, setLegendOpen] = useState(true);
-  const [roadsVisible, setRoadsVisible] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [roadsVisible, setRoadsVisible] = useState(true);
   const mobile = usePhoneLayout();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [touchActive, setTouchActive] = useState(false);

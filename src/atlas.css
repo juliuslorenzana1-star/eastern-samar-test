@@ -1,5 +1,6 @@
 /* The coastal atlas shares the entry sequence's ink, mangrove and sand palette. */
 .view-loading { display: grid; justify-items: center; gap: 12px; margin: 24px 28px; padding: 64px 20px; border-block: 1px solid var(--line); color: var(--muted); }
+.smart-tour-replay { display: inline-flex; gap: 6px; align-items: center; min-height: 44px; padding: 7px; background: transparent; border: 0; color: var(--forest); font-size: 12px; cursor: pointer; }
 .volunteer-welcome p, .volunteer-meta, .volunteer-card-footer, .volunteer-filter, .volunteer-metric small, .volunteer-group-empty { font-size: 12px; line-height: 1.5; }
 .volunteer-metric small { white-space: normal; overflow: visible; }
 .volunteer-metric strong { font-size: 22px; font-variant-numeric: tabular-nums; }

@@ -71,7 +71,9 @@
   .modal-backdrop { z-index: 2500; padding: 8px; }
   .report-modal { max-height: calc(100dvh - 16px); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
   .volunteer-filter select, .volunteer-search input { font-size: 16px; }
-  .site-footer { margin-bottom: 8px; }
+  .site-footer { margin-bottom: 8px; padding-block: 10px; flex-wrap: wrap; gap: 8px 12px; }
+  .site-footer .smart-tour-replay { order: -1; flex: 0 0 100%; justify-content: center; scroll-margin-block: 100px; }
+  .site-footer > span { flex: 1; }
 }
 @media (max-width: 900px) and (max-height: 480px) {
   .workspace { height: 74dvh; min-height: 260px; }

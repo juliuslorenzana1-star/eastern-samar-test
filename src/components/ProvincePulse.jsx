@@ -1,7 +1,6 @@
 import { Activity, Building2, CalendarDays, Crosshair, MapPin, ShieldCheck, ThumbsUp } from 'lucide-react';
 import { categoryVisual } from '../lib/place.js';
 import { useState } from 'react';
-import usePhoneLayout from '../lib/useMediaQuery.js';
 
 function Tile({ icon: Icon, value, suffix, label, tone = 'green' }) {
   return (
@@ -24,7 +23,6 @@ export default function ProvincePulse({
 }) {
   const activeMunicipalities = coverage.filter((entry) => entry.count > 0);
   const idleCount = municipalityTotal - activeMunicipalities.length;
-  const mobile = usePhoneLayout();
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -40,15 +38,14 @@ export default function ProvincePulse({
       <section className="pulse-grid" aria-label="Province summary">
         <Tile icon={Activity} value={reports.length} label="Published reports" tone="orange" />
         <Tile icon={Building2} value={activeMunicipalities.length} suffix={` / ${municipalityTotal}`} label="Municipalities reached" tone="green" />
-        <Tile icon={MapPin} value={barangays} label="Barangays named" tone="blue" />
-        {(!mobile || expanded) && <><Tile icon={ShieldCheck} value={isStaff ? pending : verified} label={isStaff ? 'Awaiting review' : 'Verified actions'} tone="violet" />
         <Tile icon={ThumbsUp} value={resolved} label="Resolved" tone="green" />
+        {expanded && <><Tile icon={MapPin} value={barangays} label="Barangays named" tone="blue" /><Tile icon={ShieldCheck} value={isStaff ? pending : verified} label={isStaff ? 'Awaiting review' : 'Verified actions'} tone="violet" />
         <Tile icon={CalendarDays} value={thisWeek} label="Filed this week" tone="blue" /></>}
       </section>
 
       <p className="pulse-note">Counts reflect published reports loaded for this session and the current area, search, status and date filters. Private submissions are excluded.</p>
-      {mobile && <button className="pulse-expand" aria-expanded={expanded} aria-controls="pulse-extra-details" onClick={() => setExpanded((value) => !value)}>{expanded ? 'View less' : 'View more community insights'}</button>}
-      <details id="pulse-extra-details" className="pulse-details" open hidden={mobile && !expanded}>
+      <button className="pulse-expand" aria-expanded={expanded} aria-controls="pulse-extra-details" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Fewer community insights' : 'More community insights'}</button>
+      <details id="pulse-extra-details" className="pulse-details" open hidden={!expanded}>
       <summary>Categories and municipality coverage</summary>
       <section className="pulse-block" aria-label="Reports by category">
         <header className="pulse-block-head"><span>Concern categories</span><small>Select a category to filter the map</small></header>

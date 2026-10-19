@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, ShieldCheck, X } from 'lucide-react';
 import useDialogFocus from '../lib/useDialogFocus.js';
+import { WELCOME_VERSION } from '../lib/onboarding.js';
 
 const copy = {
   'sign-in': {
@@ -43,7 +44,7 @@ function authErrorMessage(error) {
   return 'We could not complete that account request. Check your details and try again.';
 }
 
-export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose, onNotice, onAuthenticated }) {
+export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose, onNotice, onAuthenticated, onAccountCreated }) {
   const [mode, setMode] = useState(initialMode);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -69,17 +70,21 @@ export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose,
           email,
           password,
           options: {
-            data: { display_name: displayName.trim() || null },
+            data: { display_name: displayName.trim() || null, smart_este_welcome_version: WELCOME_VERSION },
             emailRedirectTo: authRedirectUrl,
           },
         });
         if (authError) throw authError;
         if (!data.session) {
           onNotice('Check your email to confirm your account before signing in.');
-          setMode('sign-in');
+          if (onAccountCreated && data.user?.id && data.user?.identities?.length !== 0) {
+            onClose();
+            onAccountCreated(data.user, true);
+          } else setMode('sign-in');
         } else {
           onNotice('Account created. Your profile is ready.');
           onClose();
+          onAccountCreated?.(data.user, false);
         }
       } else if (mode === 'recovery') {
         const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
