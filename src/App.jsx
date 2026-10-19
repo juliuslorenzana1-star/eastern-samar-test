@@ -376,7 +376,7 @@ function App() {
   return <main className="app-shell">
     <a className="skip-link" href="#primary-navigation">Skip to navigation</a>
     <header className="topbar">
-      <a className="brand" href="#top" aria-label="Eastern Samar Community Action Map home"><span className="brand-mark"><Compass size={21} /></span><span className="brand-copy"><strong>Eastern Samar</strong><span>COMMUNITY ACTION MAP</span></span></a>
+      <a className="brand" href="#top" aria-label="Eastern Samar Community Action Map home"><span className="brand-mark"><img src={`${import.meta.env.BASE_URL}community-mark.svg`} width="40" height="40" alt="" /></span><span className="brand-copy"><strong>Eastern Samar</strong><span>COMMUNITY ACTION MAP</span></span></a>
       <div className="topbar-center"><i className="live-indicator" /> {area === 'all' ? 'Province-wide view' : area} <span className="topbar-divider">/</span> <span>{view === 'review' ? 'Moderation queue' : view === 'volunteers' ? 'Volunteer opportunities' : 'Community reports'}</span></div>
       <div className="topbar-actions">
         {!isSupabaseConfigured && <span className="demo-label"><i /> Demo mode</span>}

@@ -61,8 +61,8 @@
 [data-theme='dark'] { --ink: #eeeadd; --muted: #a8bcb0; --paper: #142320; --canvas: #0c181b; --line: #314239; --forest: #a4c6af; --forest-dark: #335b47; --gold: #dfbd79; --page-background: #0c181b; --shadow: 0 8px 24px #0002; }
 .topbar { padding-inline: 28px; border-top: 3px solid var(--gold); height: 72px; }
 .brand { min-width: 225px; }
-.brand-mark { border: 1px solid var(--forest); border-radius: 0; background: transparent; color: var(--forest); transform: none; }
-.brand-mark svg { transform: none; }
+.brand-mark { width: 40px; height: 40px; flex: 0 0 40px; padding: 0; border: 0; border-radius: 10px; background: #214b3d; transform: none; }
+.brand-mark img { display: block; width: 100%; height: 100%; }
 .brand-copy strong { font-size: 18px; letter-spacing: -.04em; }
 .brand-copy span { color: var(--muted); letter-spacing: .15em; font-size: 8px; }
 .topbar .volunteer-nav-button, .topbar .review-nav-button { display: none; }
