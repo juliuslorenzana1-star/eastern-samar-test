@@ -5,6 +5,7 @@ import { CalendarDays, Compass, Crosshair, Layers3, MapPin, Minus, Plus, Users }
 import easternSamarBoundary from '../assets/eastern-samar-boundary.json';
 import CategorySheet from './CategorySheet.jsx';
 import usePhoneLayout from '../lib/useMediaQuery.js';
+import { observeMapViewport } from '../lib/mapViewport.js';
 import {
   BASEMAPS, PROVINCE, categoryGlyphMarkup, categoryVisual, hasCoordinates, isReviewed,
 } from '../lib/place.js';
@@ -55,9 +56,7 @@ function MapHandle({ onReady }) {
 // container keeps panning inside the padded province bounds.
 function ProvinceViewport({ focus }) {
   const map = useMap();
-  useEffect(() => {
-    map.fitBounds(PROVINCE.bounds, { padding: [18, 18], animate: false });
-  }, [map]);
+  useEffect(() => observeMapViewport(map, PROVINCE.bounds), [map]);
   useEffect(() => {
     if (!focus?.latlng) return;
     const zoom = focus.zoom ?? Math.min(Math.max(map.getZoom(), 12), 15);
