@@ -12,11 +12,10 @@
 .theme-option { min-height: 34px; border-radius: 5px; }.theme-option > span { display: none; }
 .app-shell .primary-navigation { padding-inline: 32px; gap: 28px; min-height: 54px; align-items: center; border-bottom: 1px solid var(--line); background: var(--paper); }
 .primary-navigation > button { font-size: 13px; min-height: 54px; font-weight: 500; }
-.community-more { position: relative; margin-left: auto; font-size: 13px; color: var(--muted); }
-.community-more > summary { list-style: none; display: flex; gap: 8px; align-items: center; min-height: 44px; padding-inline: 8px; cursor: pointer; }.community-more summary::-webkit-details-marker { display: none; }
-.community-more > div { position: absolute; right: 0; top: calc(100% + 8px); z-index: 1500; width: 230px; padding: 8px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
-.community-more > div > button, .community-more a { display: flex; width: 100%; align-items: center; gap: 9px; min-height: 44px; padding: 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; text-decoration: none; cursor: pointer; }
-.community-more > div > button:hover, .community-more a:hover { background: var(--canvas); }
+.app-shell .primary-navigation { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+.primary-navigation > button, .primary-navigation > a { flex-shrink: 0; white-space: nowrap; }
+.primary-navigation .navigation-operations { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; padding: 9px 13px; min-height: 40px; border: 1px solid var(--line); border-radius: 7px; color: var(--forest); background: var(--canvas); font-size: 12px; text-decoration: none; }
+.primary-navigation .navigation-operations:hover { border-color: var(--forest); }
 .app-shell .dashboard-heading { padding: 26px 32px 22px; margin: 0; }
 .heading-copy .eyebrow { font: 700 10px 'DM Sans', sans-serif; letter-spacing: .17em; }
 .heading-copy h1 { font-size: clamp(27px, 3vw, 40px); font-weight: 500; letter-spacing: -.055em; margin: 9px 0; line-height: 1.1; }

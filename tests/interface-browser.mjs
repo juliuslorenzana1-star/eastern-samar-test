@@ -61,6 +61,12 @@ try {
     assert.equal(await page.locator('.report-card').count(), 2, 'Unpublished report must stay off public map/list');
     assert.equal(await page.locator('.pulse-tile').count(), 3);
     assert.equal(await page.locator('.legend-items').count(), 0);
+    assert.equal(await page.locator('.community-more').count(), 0, 'Navigation must not have the old More dropdown');
+    if (!phone) {
+      await page.getByRole('navigation', { name: 'Community platform' }).getByRole('button', { name: 'Impact', exact: true }).click();
+      assert.equal(await page.getByRole('button', { name: 'Impact', exact: true }).getAttribute('aria-current'), 'page');
+      await page.getByRole('button', { name: 'Explore map', exact: true }).click();
+    }
     await noOverflow(page);
     await page.screenshot({ path: fileURLToPath(new URL(`community-ui-${width}-${height}-${theme}.png`, output)), animations: 'disabled', fullPage: true });
     if (phone) await page.locator('.mobile-bottom-nav').getByRole('button', { name: 'Reports', exact: true }).click();
@@ -107,6 +113,15 @@ try {
     results.push({ view: 'operations', width, height, passed: true });
     await page.close();
   }
+  // Staff destinations are direct links too, including on narrower tablets.
+  const staffNavigation = await pageFor(768, 1024, 'dark', true);
+  await staffNavigation.page.goto(base, { waitUntil: 'domcontentloaded' });
+  const platformNav = staffNavigation.page.getByRole('navigation', { name: 'Community platform' });
+  await platformNav.getByRole('link', { name: 'Operations', exact: true }).waitFor();
+  await platformNav.getByRole('button', { name: 'Administration', exact: true }).waitFor();
+  await noOverflow(staffNavigation.page);
+  assert.deepEqual(staffNavigation.errors, []);
+  await staffNavigation.page.close();
   for (const staff of [false, true]) {
     const { page, errors } = await pageFor(390, 844, 'dark', staff, true);
     await page.goto(staff ? new URL('operations/', base).href : base, { waitUntil: 'domcontentloaded' });
