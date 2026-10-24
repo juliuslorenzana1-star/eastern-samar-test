@@ -11,7 +11,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const env = loadEnv('development', root, 'VITE_');
 if (!env.VITE_SUPABASE_URL) throw Error('Local Supabase configuration is required, but no live requests will be sent.');
 const storageKey = `sb-${new URL(env.VITE_SUPABASE_URL).hostname.split('.')[0]}-auth-token`;
-const baseURL = process.env.ONBOARDING_TEST_URL || 'http://localhost:5178/';
+const baseURL = process.env.ONBOARDING_TEST_URL || process.env.UI_TEST_URL || 'http://localhost:5178/';
 const output = new URL('../test-results.local/', import.meta.url);
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'msedge', headless: true });

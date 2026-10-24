@@ -19,7 +19,7 @@ Priority: mobile map usability and Community Recognition, followed by category r
 - [x] Genuine empty/error/loading states and recognition navigation.
 - [x] Browser checks at 320, 375, 390, 430, 768 and desktop; light/dark, filters, touch, dialogs, recognition and permissions.
 - [x] 47 unit tests, 3 real PostgreSQL integration tests, clean lint and production build.
-- [ ] Main deployment and actual production browser verification.
+- [x] Main deployment and actual production browser verification.
 
 Existing production records and RLS are preserved. Recognition badges are computed from trusted attendance/completion records; no user can grant themselves hours or badges. Earlier unrelated platform repair migrations remain outside this focused database change.
 
@@ -36,3 +36,7 @@ Existing production records and RLS are preserved. Recognition badges are comput
 - Security advisor adds only the intentionally callable recognition RPC notices. Existing trigger-function exposure and leaked-password-protection notices remain outside this focused repair. The broader platform_statistics migration remains pending.
 
 Run npm run lint, npm test, npm run test:database, npm run build, npm run test:browser. Targeted browser checks: node tests/run-browser.mjs --focused. Real read-only Supabase checks against the compiled app: node tests/run-browser.mjs --live-only.
+
+Production release: main commit 5f88d30fae7226a37bcc87b3713f9ed1f2b853b0, Vercel deployment dpl_9a6M693JTsSkbA3C3gFwjgJq69yq (READY). Real browser checks against https://eastern-samar-test.vercel.app/ pass for public reports, municipality filters, theme persistence, sourced hotlines, recognition HTTP 200/empty state, mobile first-screen map, and all ten categories. The unrelated platform_statistics RPC remains 404.
+
+The first GitHub quality run exposed an existing test-runner mismatch: onboarding used localhost:5178 while the runner served the compiled app on 5179. Onboarding now honors UI_TEST_URL, so every suite tests the same compiled build in CI and locally.

@@ -2,6 +2,8 @@
 
 ## Current disposition
 
+The focused mobile-map and Community Recognition repair is deployed from `main` commit `5f88d30fae7226a37bcc87b3713f9ed1f2b853b0` as READY deployment `dpl_9a6M693JTsSkbA3C3gFwjgJq69yq`. Production browser checks pass, including the first-screen mobile map, all ten category labels and recognition's genuine zero-data state. The narrow recognition database migration is applied; details and checks are in [focused repair evidence](MOBILE_RECOGNITION_PROGRESS.md).
+
 After the user explicitly requested deployment to `main`, frontend commit `211c028e09fd60f2f977087e7b0191a0bcae1703` was fast-forwarded into `main` and pushed. Vercel's Git integration deployed it successfully as `dpl_5rEUz5opQsv6WF5hS9RGEiA4b5TG`, with the production alias serving the new version. Real public-browser checks pass against https://eastern-samar-test.vercel.app/.
 
 **The broader database integration is not yet qualified.** The earlier frontend release changed no database credentials or account roles. The subsequent focused repair applied only the additive recognition migration, verified public HTTP reads and anonymous denial of personal summaries. See [focused repair evidence](MOBILE_RECOGNITION_PROGRESS.md). The unrelated totals RPC still returns 404 pending the broader database repair. Earlier direct API preview attempts returned HTTP 403; Git-triggered production deployment works.
