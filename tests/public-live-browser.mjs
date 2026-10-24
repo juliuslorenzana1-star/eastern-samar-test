@@ -13,7 +13,7 @@ try {
   });
   await page.route('https://*.supabase.co/**',route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
-    const allowedRead=['platform_statistics','report_progress','get_volunteer_signup_counts','get_volunteer_community_totals','get_public_leaderboard'];
+    const allowedRead=['platform_statistics','report_progress','get_volunteer_signup_counts','get_volunteer_community_totals','get_public_leaderboard','get_community_recognition'];
     if(!['GET','HEAD','OPTIONS'].includes(request.method()) && !allowedRead.some(name=>path.endsWith('/rpc/'+name)))throw new Error('Live test refused a write request.');
     return route.continue();
   });
@@ -39,6 +39,22 @@ try {
   await page.evaluate(()=>window.scrollTo(0,0));
   await mkdir('test-results.local',{recursive:true});
   await page.screenshot({path:'test-results.local/live-public-desktop.png',fullPage:true});
+  await page.goto(new URL('#recognition',process.env.UI_TEST_URL || 'http://localhost:5178/').href,{waitUntil:'domcontentloaded'});
+  await page.locator('.recognition-empty,.recognition-ranking').waitFor();
+  assert.ok(results.api.some(item=>item.path.endsWith('/get_community_recognition') && item.status===200));
+  await page.setViewportSize({width:320,height:640});
+  await page.goto(process.env.UI_TEST_URL || 'http://localhost:5178/',{waitUntil:'domcontentloaded'});
+  await page.locator('.leaflet-map').waitFor(); await page.evaluate(()=>window.scrollTo(0,0));
+  const mobileMap=await page.locator('.map-stage').boundingBox(); assert.ok(mobileMap.y<220);
+  await page.getByRole('button',{name:/^Filters/}).click();
+  const filters=page.getByRole('dialog',{name:'Filter community map',exact:true}); await filters.waitFor();
+  await page.waitForFunction(()=>document.querySelectorAll('.category-sheet-options button').length===11);
+  assert.equal(await filters.locator('.category-sheet-options button').count(),11);
+  assert.ok(await filters.getByRole('button',{name:/Disaster and Emergency/}).count());
+  await page.screenshot({path:'test-results.local/live-mobile-filters.png'});
+  await page.keyboard.press('Escape');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.screenshot({path:'test-results.local/live-mobile-map.png'});
   assert.deepEqual(results.consoleErrors,[]);
   results.blocked=results.api.filter(item=>item.status>=400);
   await writeFile('test-results.local/live-public-results.json',JSON.stringify(results,null,2));

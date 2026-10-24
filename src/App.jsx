@@ -36,6 +36,7 @@ import { getOfflineDrafts, removeOfflineDraft, syncOfflineDrafts } from './lib/o
 
 const ModeratorDashboard = lazy(() => import('./components/ModeratorDashboard.jsx'));
 const ProvinceMap = lazy(() => import('./components/ProvinceMap.jsx'));
+const CommunityRecognition = lazy(() => import('./components/CommunityRecognition.jsx'));
 const VolunteerBoard = lazy(() => import('./components/VolunteerBoard.jsx'));
 const SmartEsteWelcome = lazy(() => import('./components/SmartEsteWelcome.jsx'));
 
@@ -98,7 +99,7 @@ function App() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [authMode, setAuthMode] = useState(null);
-  const [view, setView] = useState('map');
+  const [view, setView] = useState(() => window.location.hash === '#recognition' ? 'recognition' : 'map');
   const [navigationTarget, setNavigationTarget] = useState('map');
   const [loadedAt] = useState(() => Date.now());
   const [themeMode, setThemeMode] = useState(() => readStoredThemeMode());
@@ -144,6 +145,7 @@ function App() {
 
   const openedEmailLink = useRef('');
   const handleEmailLink = useEffectEvent(() => {
+    if (window.location.hash === '#recognition') { setView('recognition'); return; }
     const hash = window.location.hash.slice(1);
     if (!hash || openedEmailLink.current === hash) return;
     const params = new URLSearchParams(hash);
@@ -236,7 +238,7 @@ function App() {
         setMyReports([]);
         setMyReportsError('');
         setShowSubmissions(false);
-        setView('map');
+        setView(current => current === 'recognition' ? current : 'map');
       }
       if (event === 'PASSWORD_RECOVERY') {
         setAuthMode('update');
@@ -449,7 +451,7 @@ function App() {
   async function signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) setNotice('We could not sign you out. Please try again.');
-    else { setView('map'); setNotice('You have signed out.'); }
+    else { setView(current => current === 'recognition' ? current : 'map'); setNotice('You have signed out.'); }
   }
   async function reviewReport(values) {
     await moderateReport(values);
@@ -466,6 +468,7 @@ function App() {
   }
 
   function navigate(destination) {
+    if (window.location.hash === '#recognition') window.history.replaceState(null, '', window.location.pathname + window.location.search);
     if (destination === 'report') { startReport(); return; }
     if (destination === 'profile' && !sessionUserId) {
       if (isSupabaseConfigured) { setAuthMode('sign-in'); setFormOpen(true); }
@@ -516,10 +519,10 @@ function App() {
     finally { setMyReportsRetrying(false); }
   }
 
-  const activeNavigation = view === 'volunteers' || view === 'review' ? view : showSubmissions ? 'profile' : navigationTarget;
+  const activeNavigation = view === 'recognition' ? 'volunteers' : view === 'volunteers' || view === 'review' ? view : showSubmissions ? 'profile' : navigationTarget;
   const appliedFilterCount = [area, category, status, dateRange].filter((value) => value !== 'all').length;
 
-  return <main className="app-shell">
+  return <main className={`app-shell${view === 'map' ? ' is-map-view' : ''}`}>
     <a className="skip-link" href="#primary-navigation">Skip to navigation</a>
     <header className="topbar">
       <a className="brand" href="#top" aria-label="Eastern Samar Community Action Map home"><span className="brand-mark"><img src={`${import.meta.env.BASE_URL}community-mark.svg`} width="40" height="40" alt="" /></span><span className="brand-copy"><strong>SMART ESTE</strong><span>EASTERN SAMAR · COMMUNITY MAP</span></span></a>
@@ -547,7 +550,7 @@ function App() {
     <nav className="primary-navigation" id="primary-navigation" aria-label="Community platform">
       <button aria-current={activeNavigation === 'map' ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={17} />Explore map</button>
       <button aria-current={activeNavigation === 'reports' ? 'page' : undefined} onClick={() => navigate('reports')}><Inbox size={17} />Community reports</button>
-      <button aria-current={view === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={17} />Volunteer</button>
+      <button aria-current={activeNavigation === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={17} />Volunteer</button>
       <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={17} />My submissions</button>
       <button aria-current={activeNavigation === 'impact' ? 'page' : undefined} onClick={() => navigate('impact')}><Activity size={17} />Impact</button>
       {isStaff && <><button aria-current={view === 'review' ? 'page' : undefined} onClick={() => navigate('review')}><Layers3 size={17} />Administration</button><a className="navigation-operations" href={`${import.meta.env.BASE_URL}operations/`}><ShieldCheck size={16} />Operations</a></>}
@@ -556,8 +559,8 @@ function App() {
     <section className="dashboard-heading" id="top">
       <div className="heading-copy">
         <span className="eyebrow">OUR COAST. OUR COMMUNITIES.</span>
-        <h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'review' ? 'Make the next step count.' : view === 'volunteers' ? 'A little time. A local difference.' : 'Your Community. Your Voice. Our Action.'}</h1>
-        <p>{view === 'review' ? 'Review concerns and help local action move forward.' : view === 'volunteers' ? 'Find an activity, lend your skills, and be part of something close to home.' : 'A community-powered platform where Eastern Samar residents can report local concerns, participate in volunteer initiatives, and contribute to a more responsive and resilient province.'}</p>
+        <h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'recognition' ? 'Community Recognition' : view === 'review' ? 'Make the next step count.' : view === 'volunteers' ? 'A little time. A local difference.' : 'Your Community. Your Voice. Our Action.'}</h1>
+        <p>{view === 'recognition' ? 'Celebrating verified service, with privacy on your terms.' : view === 'review' ? 'Review concerns and help local action move forward.' : view === 'volunteers' ? 'Find an activity, lend your skills, and be part of something close to home.' : 'A community-powered platform where Eastern Samar residents can report local concerns, participate in volunteer initiatives, and contribute to a more responsive and resilient province.'}</p>
       </div>
       {view !== 'volunteers' && (
         <div className="heading-meta">
@@ -578,7 +581,7 @@ function App() {
     {loadError && <div className="app-error" role="alert"><strong>Unable to load the shared platform.</strong><span>{loadError}</span><button className="outline-button" onClick={() => window.location.reload()}>Try again</button></div>}
     {view === 'map' && <CivicOverview staff={isStaff} reports={reports} activities={volunteerMapData.opportunities} onReport={startReport} onMap={() => navigate('map')} onVolunteer={() => navigate('volunteers')} />}
     <Suspense fallback={<section className="view-loading" role="status"><Compass size={22} /><strong>Opening {view === 'review' ? 'administration' : 'volunteer opportunities'}…</strong><span>The community map will be ready when you return.</span></section>}>
-    {view === 'volunteers' ? <VolunteerBoard
+    {view === 'recognition' ? <CommunityRecognition userId={sessionUserId} onBack={() => { window.history.replaceState(null, '', window.location.pathname + window.location.search); setView('volunteers'); }} onSignIn={() => { setAuthMode('sign-in'); setFormOpen(true); }} /> : view === 'volunteers' ? <VolunteerBoard
       configured={isSupabaseConfigured}
       userId={sessionUserId}
       theme={theme}
@@ -628,6 +631,8 @@ function App() {
           counts={counts}
           category={category}
           onCategory={setCategory}
+          filters={{ query, area, status, dateRange }} municipalities={MUNICIPALITIES} statuses={statusOptions}
+          onFilters={(next) => { setQuery(next.query); setArea(next.area); setStatus(next.status); setDateRange(next.dateRange); }}
           area={area}
           selected={selected}
           onSelect={setSelected}
@@ -686,8 +691,7 @@ function App() {
       <button aria-current={activeNavigation === 'map' ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={20} /><span>Map</span></button>
       <button aria-current={activeNavigation === 'reports' ? 'page' : undefined} onClick={() => navigate('reports')}><Inbox size={20} /><span>Reports</span></button>
       <button onClick={() => navigate('report')}><Plus size={21} /><span>Submit</span></button>
-      <button aria-current={view === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={20} /><span>Volunteer</span></button>
-      <button type="button" onClick={() => setHotlinesOpen(true)} className="mobile-hotline-tab" aria-label="Emergency hotlines"><PhoneCall size={20} /><span>Hotlines</span></button>
+      <button aria-current={activeNavigation === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={20} /><span>Volunteer</span></button>
       <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={20} /><span>Profile</span></button>
       {isStaff && <a href={`${import.meta.env.BASE_URL}operations/`}><Layers3 size={20} /><span>Operations</span></a>}
     </nav>

@@ -3,13 +3,13 @@ import {
   ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, FileText, Filter, MapPin,
   Search, ShieldCheck, Users, X,
 } from 'lucide-react';
-import { fetchProfile } from '../lib/reports.js';
+
 import useDialogFocus from '../lib/useDialogFocus.js';
 import { MUNICIPALITIES, categoryVisual, hasCoordinates } from '../lib/place.js';
 import {
-  cancelVolunteerRegistration, fetchVolunteerCommunityTotals, fetchVolunteerLeaderboard,
+  cancelVolunteerRegistration, fetchVolunteerCommunityTotals,
   fetchVolunteerOpportunities, fetchVolunteerRegistrations, fetchVolunteerSignupCounts,
-  registerForVolunteerOpportunity, updateProfileLeaderboardVisibility, fetchVolunteerPrivacy,
+  registerForVolunteerOpportunity,
 } from '../lib/volunteers.js';
 
 const categories = [
@@ -102,14 +102,6 @@ export default function VolunteerBoard({
   const [signupCounts, setSignupCounts] = useState({});
   const [registrations, setRegistrations] = useState([]);
   const [communityTotals, setCommunityTotals] = useState({ volunteersJoined: 0, communityHours: 0 });
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [leaderboardLoading, setLeaderboardLoading] = useState(configured);
-  const [leaderboardError, setLeaderboardError] = useState('');
-  const [publicAlias, setPublicAlias] = useState('');
-  const [privacyOwner,setPrivacyOwner] = useState(null);
-  const privacyReady = Boolean(userId && privacyOwner===userId);
-  const [privacyBusy, setPrivacyBusy] = useState(false);
-  const [profileVisibility, setProfileVisibility] = useState(false);
   const [loading, setLoading] = useState(configured);
   const [registrationLoading, setRegistrationLoading] = useState(false);
   const [error, setError] = useState('');
@@ -183,31 +175,6 @@ export default function VolunteerBoard({
     return () => { active = false; };
   }, [configured, onDataLoaded, userId]);
 
-  useEffect(() => {
-    if (!configured) return undefined;
-    let active = true;
-    fetchVolunteerLeaderboard()
-      .then((nextEntries) => { if (active) setLeaderboard(nextEntries); })
-      .catch(() => { if (active) { setLeaderboard([]); setLeaderboardError('Community recognition is unavailable. Please try again later.'); } })
-      .finally(() => { if (active) setLeaderboardLoading(false); });
-    return () => { active = false; };
-  }, [configured]);
-
-  useEffect(() => {
-    if (!userId) {
-      return undefined;
-    }
-    let active = true;
-    fetchVolunteerPrivacy(userId).then((settings) => {
-      if (active) { setPublicAlias(settings.public_alias || ''); setPrivacyOwner(userId); }
-    }).catch((privacyError) => { if (active) setMessage(privacyError.message); });
-    fetchProfile(userId)
-      .then((nextProfile) => { if (active) setProfileVisibility(Boolean(nextProfile?.show_on_leaderboard)); })
-      .catch(() => { if (active) setProfileVisibility(false); });
-    return () => { active = false; };
-  }, [userId]);
-
-
   const openInitialOpportunity = useEffectEvent((match) => {
     setSelected(match);
     if (initialAction) beginJoin(match);
@@ -271,7 +238,7 @@ export default function VolunteerBoard({
     }).filter(Boolean));
     return {
       joined: registrations.filter((registration) => !['cancelled', 'no_show'].includes(registration.status)).length,
-      completed: completed.length,
+      completed: completed.filter(registration => registration.status === 'completed').length,
       communities: places.size,
     };
   }, [registrations]);
@@ -329,22 +296,6 @@ export default function VolunteerBoard({
       if (/capacity/i.test(joinError.message ?? '')) await reloadOpportunities();
     } finally {
       setBusyId(null);
-    }
-  }
-
-  async function handleVisibilityToggle(nextChecked) {
-    if (!userId) return;
-    setPrivacyBusy(true);
-    try {
-      await updateProfileLeaderboardVisibility(nextChecked, publicAlias);
-      setProfileVisibility(nextChecked);
-      const nextLeaderboard = await fetchVolunteerLeaderboard();
-      setLeaderboard(nextLeaderboard);
-      setMessage(nextChecked ? 'Your community hours are now visible on the public leaderboard.' : 'Your community hours are hidden from the public leaderboard.');
-    } catch (error) {
-      setMessage(error?.message || 'Your leaderboard visibility could not be updated.');
-    } finally {
-      setPrivacyBusy(false);
     }
   }
 
@@ -438,30 +389,7 @@ export default function VolunteerBoard({
     {!configured && <div className="volunteer-empty"><Users size={24} /><strong>Volunteer listings are unavailable in demo mode.</strong><span>Connect the shared Supabase database to view local opportunities and record participation.</span></div>}
     {configured && error && <div className="volunteer-error" role="alert"><strong>Volunteer listings are unavailable.</strong><span>{error}</span><button type="button" className="outline-button" onClick={() => { setLoading(true); setError(''); Promise.all([reloadOpportunities(), reloadRegistrations()]).catch(() => setError('Volunteer data is still unavailable. Check the migration and database connection.')).finally(() => setLoading(false)); }}>Try again</button></div>}
 
-    <section className="leaderboard-panel" aria-labelledby="leaderboard-title">
-      <div className="volunteer-section-heading">
-        <div>
-          <span className="eyebrow">COMMUNITY RECOGNITION</span>
-          <h2 id="leaderboard-title">Estehanon Community Leaders</h2>
-        </div>
-        <span>{leaderboard.length} listed</span>
-      </div>
-      <p className="leaderboard-intro">Recognizing community members who give their time to help Eastern Samar.</p>
-      {userId && <div className="leaderboard-privacy">
-        <div>
-          <strong>Display my verified volunteer hours on the public leaderboard.</strong>
-          <small>{profileVisibility ? 'Visible on the public leaderboard' : 'Hidden from the public leaderboard'}</small>
-          <label className="field-label">Public name or alias<input maxLength={80} value={publicAlias} disabled={!privacyReady || privacyBusy} onChange={(event) => setPublicAlias(event.target.value)} placeholder="Choose how your name appears" /></label>
-          {profileVisibility && privacyReady && <button className="outline-button" disabled={privacyBusy} onClick={() => handleVisibilityToggle(true)}>Save public name</button>}
-          <small>You can volunteer privately. Hiding your entry keeps your service records.</small>
-        </div>
-        <label className="leaderboard-toggle">
-          <input type="checkbox" aria-label="Display my verified volunteer hours on the public leaderboard" disabled={privacyBusy || (!profileVisibility && (!privacyReady || !publicAlias.trim()))} checked={profileVisibility} onChange={(event) => handleVisibilityToggle(event.target.checked)} />
-          <span>{profileVisibility ? 'On' : 'Off'}</span>
-        </label>
-      </div>}
-      {leaderboardError ? <p className="volunteer-message is-error" role="alert">{leaderboardError}</p> : leaderboardLoading ? <div className="leaderboard-skeleton" role="status" aria-live="polite" /> : leaderboard.length ? <ol className="leaderboard-list">{leaderboard.map((entry) => <li key={`${entry.displayName}-${entry.rank}`}><span className="leaderboard-rank">#{entry.rank}</span><span className="leaderboard-name">{entry.displayName}</span><span className="leaderboard-hours">{entry.communityHours} hrs</span><span className="leaderboard-activities">{entry.volunteerActivities} activities</span></li>)}</ol> : <div className="volunteer-empty leaderboard-empty"><ShieldCheck size={21} /><strong>No public community leaders yet.</strong><span>When community members opt in to share their hours, this leaderboard will appear here.</span></div>}
-    </section>
+    <a className="outline-button recognition-link" href="#recognition">Community Recognition</a>
 
     <div className="volunteer-tabs" role="tablist" aria-label="Volunteer views">
       <button type="button" role="tab" aria-selected={view === 'opportunities'} className={view === 'opportunities' ? 'is-active' : ''} onClick={() => setView('opportunities')}>Opportunities <span>{opportunities.length}</span></button>

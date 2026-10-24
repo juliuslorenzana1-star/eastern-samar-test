@@ -10,7 +10,7 @@ try {
     await setTimeout(200);
   }
   if(!ready)throw new Error('Built preview server did not start. Run npm run build first.');
-  const suites=['interface-browser.mjs','onboarding-browser.mjs'];
+  const suites=process.argv.includes('--live-only') ? ['public-live-browser.mjs'] : process.argv.includes('--focused') ? ['mobile-recognition-browser.mjs'] : ['interface-browser.mjs','onboarding-browser.mjs','mobile-recognition-browser.mjs'];
   if(process.argv.includes('--live'))suites.push('public-live-browser.mjs');
   for(const suite of suites) await new Promise((resolve,reject)=>{
     const child=spawn(process.execPath,[fileURLToPath(new URL(suite,import.meta.url))],{env:{...process.env,UI_TEST_URL:base},stdio:'inherit',windowsHide:true});

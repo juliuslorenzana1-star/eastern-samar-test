@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { validateReport } from './report-validation.js';
+import { categoryLabel } from './categories.js';
 
 const reportColumns = [
   'id',
@@ -140,7 +141,7 @@ export async function fetchReportCategories() {
     .eq('active', true)
     .order('sort_order');
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map(category=>({...category,name:categoryLabel(category.slug,category.name)}));
 }
 
 export async function fetchProfile(userId) {

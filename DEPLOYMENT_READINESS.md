@@ -4,7 +4,7 @@
 
 After the user explicitly requested deployment to `main`, frontend commit `211c028e09fd60f2f977087e7b0191a0bcae1703` was fast-forwarded into `main` and pushed. Vercel's Git integration deployed it successfully as `dpl_5rEUz5opQsv6WF5hS9RGEiA4b5TG`, with the production alias serving the new version. Real public-browser checks pass against https://eastern-samar-test.vercel.app/.
 
-**Database integration is not yet qualified.** No database migration, credentials or account roles were changed. The new totals RPC still returns 404 pending the reviewed database repair. Earlier direct API preview attempts returned HTTP 403; this did not prevent the Git-triggered production deployment after pushing `main`.
+**The broader database integration is not yet qualified.** The earlier frontend release changed no database credentials or account roles. The subsequent focused repair applied only the additive recognition migration, verified public HTTP reads and anonymous denial of personal summaries. See [focused repair evidence](MOBILE_RECOGNITION_PROGRESS.md). The unrelated totals RPC still returns 404 pending the broader database repair. Earlier direct API preview attempts returned HTTP 403; Git-triggered production deployment works.
 
 - Vercel project: `prj_cUWQhH3NFDe5Jfe4KZAq77IQCaRw` (`eastern-samar-test`).
 - Owning team: `team_UBwUQgGSTrkPJ6O7I1QmOrJ8`, scope `ke-6937`.

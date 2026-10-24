@@ -41,6 +41,14 @@ Moderators and administrators can publish standalone Eastern Samar activities or
 
 Apply `supabase/migrations/202610010002_report_linked_volunteer_opportunities.sql` and then `supabase/migrations/202610010003_volunteer_participation.sql` before using the expanded volunteer experience. The new migration preserves existing opportunities and imports legacy signups as registrations without assuming attendance or awarding hours. Join/capacity checks and attendance authorization run in database functions under the existing resident and moderator/admin roles.
 
+## Mobile map and Community Recognition
+
+The mobile map appears before supporting information and has a full filter bottom sheet. All ten category labels remain readable without changing stored identifiers.
+
+Open **Volunteer → Community Recognition** or `/#recognition` for opt-in contributions. Staff-verified hours determine rank; ties share rank. Signed-in volunteers can view private verified history, milestones and privacy settings. Public recognition is off by default. Zero verified records produce an empty state.
+
+The additive `supabase/migrations/20261024183629_community_recognition.sql` repairs the legacy recognition schema without applying the unrelated platform overhaul. It was applied to the current Supabase project after isolated PostgreSQL tests. See [focused repair evidence](MOBILE_RECOGNITION_PROGRESS.md).
+
 ## Security and product limits
 
 - The report form and moderator dashboard are connected to Supabase. Moderation decisions are enforced through a staff-checked database function; internal notes and evidence remain private.

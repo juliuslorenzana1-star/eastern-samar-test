@@ -1,0 +1,83 @@
+﻿/* Focused map and recognition repairs; loaded after the existing theme. */
+.map-stage .legend-items { grid-template-columns: minmax(0,1fr); max-height: min(45dvh,440px); overflow-y: auto; }
+.map-stage .map-legend { width: min(320px,calc(100% - 32px)); max-width: 320px; }
+.map-stage .legend-item { min-height: 44px; white-space: normal; overflow: visible; font-size: 13px; align-items: center; }
+.map-stage .legend-item span { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.map-filter-body { overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+.category-sheet .category-sheet-options { overflow: visible; max-height: none; }
+.map-filter-fields { display: grid; gap: 12px; margin: 0 0 16px; }
+.map-filter-fields label,.recognition-privacy > label { display: grid; gap: 7px; font-weight: 600; }
+.map-filter-fields input,.map-filter-fields select,.recognition-privacy input:not([type=checkbox]) { width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font: inherit; font-size: 16px; }
+.category-sheet footer { flex-shrink: 0; }
+.recognition-link { display: inline-flex; margin-bottom: 18px; }
+.community-recognition { display: grid; gap: 20px; min-width: 0; }
+.recognition-public,.recognition-personal,.recognition-criteria { padding: clamp(16px,3vw,30px); border: 1px solid var(--line); border-radius: 20px; background: var(--paper); min-width: 0; }
+.community-recognition p { line-height: 1.6; }
+.recognition-ranking,.recognition-history,.recognition-badges { padding: 0; list-style: none; }
+.recognition-ranking > li { display: flex; gap: 16px; padding: 20px 0; border-top: 1px solid var(--line); }
+.recognition-ranking > li > div { min-width: 0; overflow-wrap: anywhere; }
+.recognition-rank { font-size: 24px; font-weight: 700; }
+.recognition-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.recognition-badges li { border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.recognition-badges small,.recognition-history span,.recognition-history small { display: block; margin-top: 5px; }
+.recognition-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.recognition-metrics strong { display: block; font-size: 24px; overflow-wrap: anywhere; }
+.recognition-privacy { display: grid; gap: 16px; max-width: 640px; margin: 24px 0; padding: 20px 0; border-block: 1px solid var(--line); }
+.recognition-privacy .recognition-checkbox { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.recognition-checkbox input { width: 22px; height: 22px; flex-shrink: 0; }
+.recognition-history li { padding: 16px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.recognition-empty { padding: 24px 0; }
+.recognition-criteria summary { min-height: 44px; cursor: pointer; }
+@media(max-width:900px) {
+  .is-map-view { display: flex; flex-direction: column; gap: 12px; }
+  .is-map-view > * { order: 10; }
+  .is-map-view > .topbar { order: 0; }
+  .is-map-view > .primary-navigation { order: 1; }
+  .is-map-view > .dashboard-heading { order: 2; padding-block: 0; margin-block: 0; }
+  .is-map-view > .workspace { order: 3; height: calc(100dvh - 210px); min-height: 280px; max-height: 800px; margin-top: 0; }
+  .is-map-view > .pulse { order: 4; }
+  .is-map-view > .report-trends { order: 5; }
+  .is-map-view > .civic-overview { order: 6; }
+  .is-map-view > .site-footer { order: 20; }
+  .is-map-view .community-intro,.is-map-view .heading-meta,.is-map-view .heading-copy > p,.is-map-view .heading-copy > .eyebrow { display: none; }
+  .is-map-view .dashboard-heading h1 { font-size: clamp(18px,4.5vw,25px); line-height: 1.2; margin: 0; max-width: none; }
+  .is-map-view .map-stage { height: 100%; min-height: 0; }
+  .is-map-view .map-stage .map-controls { top: 68px; right: 8px; }
+  .map-stage .map-controls button { width: 44px; height: 44px; }
+  .map-stage .mobile-map-toolbar { bottom: 30px; }
+  .map-stage:has(.detail-card) .map-controls,.map-stage:has(.detail-card) .mobile-map-toolbar { visibility: hidden; }
+  .map-stage .map-legend { display: none; }
+  .category-sheet { max-height: calc(100dvh - 24px); }
+  .category-sheet-options button { min-height: 48px; }
+}
+@media(max-width:620px) {
+  .mobile-bottom-nav { grid-template-columns: repeat(5,minmax(0,1fr)); }
+  .mobile-bottom-nav:has(a) { grid-template-columns: repeat(6,minmax(0,1fr)); }
+  .recognition-metrics { grid-template-columns: 1fr; gap: 0; }
+  .recognition-ranking > li { gap: 10px; }
+  .community-recognition button { min-height: 44px; }
+}
+@media(max-height:480px) and (max-width:900px) {
+  .is-map-view > .workspace { height: calc(100dvh - 170px); min-height: 220px; }
+}
+@media(max-width:900px) {
+  .map-stage .mobile-map-toolbar { position:absolute; z-index:600; left:8px; right:8px; display:flex; justify-content:space-between; gap:8px; pointer-events:none; }
+  .mobile-map-toolbar button { min-height:44px; display:flex; align-items:center; justify-content:center; gap:7px; padding:0 12px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink); font-size:13px; font-weight:600; pointer-events:auto; }
+  .map-filter-fields { padding-inline:16px; }
+  .is-map-view .pulse .pulse-copy { min-width:0; }
+  .is-map-view .pulse .pulse-copy > span { overflow-wrap:normal; word-break:normal; }
+}
+@media(max-width:620px) {
+  .topbar .brand-copy strong { font-size:13px; white-space:nowrap; }
+  .topbar .brand-copy > span { display:none; }
+  .topbar .brand { gap:6px; }
+  .topbar .brand-mark { width:30px; height:30px; flex-basis:30px; }
+  .topbar .brand-mark img { width:30px; height:30px; }
+  .topbar .mobile-theme-select { width:70px; }
+  .is-map-view .pulse .pulse-grid { grid-template-columns:1fr; }
+  .is-map-view .pulse .pulse-tile { display:flex; align-items:center; gap:12px; }
+  .is-map-view .pulse .pulse-copy { display:flex; flex:1; align-items:center; gap:12px; }
+  .is-map-view .pulse .pulse-copy strong { min-width:68px; }
+}
+.community-recognition .primary-button { color:#fff; background:var(--forest-dark); }
+.community-recognition .outline-button { white-space:normal; text-align:center; }

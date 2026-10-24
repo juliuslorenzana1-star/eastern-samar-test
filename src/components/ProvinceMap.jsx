@@ -112,12 +112,13 @@ function MapGestures({ mobile, enabled }) {
 export default function ProvinceMap({
   reports, theme, categories, counts, category, onCategory, area, selected, onSelect,
   focus, picking, onPick, onCancelPick, pickLocation, onStartReport, detail, mappedCount,
-  volunteerOpportunities = [], volunteerSignupCounts = {}, onVolunteerOpen,
+  volunteerOpportunities = [], volunteerSignupCounts = {}, onVolunteerOpen, filters, onFilters, municipalities, statuses,
 }) {
   const mapRef = useRef(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [roadsVisible, setRoadsVisible] = useState(true);
-  const mobile = usePhoneLayout();
+  const mobile = usePhoneLayout(900);
+  const activeFilters = (category !== 'all' ? 1 : 0) + Object.entries(filters || {}).filter(([key,value]) => key === 'query' ? value.trim() : value !== 'all').length;
   const [sheetOpen, setSheetOpen] = useState(false);
   const [touchActive, setTouchActive] = useState(false);
   const handleReady = useCallback((instance) => { mapRef.current = instance; }, []);
@@ -208,7 +209,7 @@ export default function ProvinceMap({
         />
         <GeoJSON data={municipalBoundaries} style={(feature) => ({color:theme==='dark'?'#78b4b4':'#315b69',weight:feature.properties.municipality===area ? 3 : 1,fillOpacity:feature.properties.municipality===area ? .15 : 0,opacity:.7})} onEachFeature={(feature,layer) => layer.bindTooltip(feature.properties.municipality)} />
         <MapHandle onReady={handleReady} />
-        <MapGestures mobile={mobile} enabled={touchActive} />
+        <MapGestures mobile={mobile} enabled={touchActive || picking} />
         <ProvinceViewport focus={focus} area={area} />
         <ClickCapture enabled={picking} onPick={onPick} />
         {pickLocation && (
@@ -251,10 +252,10 @@ export default function ProvinceMap({
       )}
 
       {mobile && <div className="mobile-map-toolbar">
-        <button onClick={() => setSheetOpen(true)} aria-haspopup="dialog" aria-expanded={sheetOpen}><Layers3 size={17} />Categories{category !== 'all' && <b aria-label="1 active category filter">1</b>}</button>
+        <button onClick={() => setSheetOpen(true)} aria-haspopup="dialog" aria-expanded={sheetOpen}><Layers3 size={17} />Filters{activeFilters > 0 && <b aria-label={`${activeFilters} active filters`}>{activeFilters}</b>}</button>
         <button aria-pressed={touchActive} onClick={() => setTouchActive((active) => !active)}><Crosshair size={17} />{touchActive ? 'Done moving' : 'Move map'}</button>
       </div>}
-      {mobile && sheetOpen && <CategorySheet categories={categories} counts={counts} category={category} theme={theme} onApply={onCategory} onClose={() => setSheetOpen(false)} />}
+      {mobile && sheetOpen && <CategorySheet filters={filters} onFilters={onFilters} municipalities={municipalities} statuses={statuses} categories={categories} counts={counts} category={category} theme={theme} onApply={onCategory} onClose={() => setSheetOpen(false)} />}
       <div className="map-legend">
         <div className="legend-head">
           <span><Layers3 size={12} /> Concern categories</span>

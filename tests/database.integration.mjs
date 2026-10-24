@@ -95,7 +95,7 @@ test('one-time production repair upgrades the inspected legacy shape without rep
   try {
     await bootstrapDatabase(db);
     const directory=new URL('../supabase/migrations/',import.meta.url);
-    const names=(await readdir(directory)).filter(name=>name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion/.test(name)).sort();
+    const names=(await readdir(directory)).filter(name=>name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition/.test(name)).sort();
     for(const name of names)await db.exec(await readFile(new URL(name,directory),'utf8'));
     const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     await db.exec(`insert into auth.users(id) values('${owner}'); select set_config('request.jwt.claim.sub','${owner}',false);`);
@@ -112,4 +112,61 @@ test('one-time production repair upgrades the inspected legacy shape without rep
     await assert.rejects(db.exec(await readFile(new URL('../supabase/proposed/production_readiness_repair.sql',import.meta.url),'utf8')),/already applied/);
     await db.exec('rollback');
   }finally{await db.close();}
+});
+
+test('recognition repair works on legacy schema, protects identity, ranks ties and derives verified milestones', async () => {
+  const db = new PGlite();
+  try {
+    await bootstrapDatabase(db);
+    const directory = new URL('../supabase/migrations/',import.meta.url);
+    for (const name of (await readdir(directory)).filter(name => name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition/.test(name)).sort()) await db.exec(await readFile(new URL(name,directory),'utf8'));
+    const sql = await readFile(new URL('20261024183629_community_recognition.sql',directory),'utf8');
+    await db.exec(sql);
+    await db.exec(sql); // Additive repair is safe to retry.
+    const people = ['11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333'];
+    await db.exec(`insert into auth.users(id) values ${people.map(id=>`('${id}')`).join(',')}; update profiles set display_name='PRIVATE legal name';`);
+    async function as(role,id,query) {
+      await db.exec(`reset role; select set_config('request.jwt.claim.sub','${id || ''}',false); set role ${role}`);
+      try {return (await db.query(query)).rows;} finally {await db.exec('reset role');}
+    }
+    assert.deepEqual(await as('anon',null,'select * from get_community_recognition()'),[]);
+    await assert.rejects(as('anon',null,'select get_my_recognition()'),/permission denied/);
+    await assert.rejects(as('authenticated',null,'select get_my_recognition()'),/Sign in/);
+    const staff='44444444-4444-4444-8444-444444444444';
+    await db.exec(`insert into auth.users(id) values('${staff}'); update profiles set role='admin' where id='${staff}'; select set_config('request.jwt.claim.sub','${staff}',false)`);
+    for(let index=0;index<6;index++) {
+      const activity=(await db.query(`insert into volunteer_opportunities(title,description,status,category,municipality,organizer_id) values('Verified test action ${index}','Isolated PostgreSQL fixture only.','published','environment','${index%2?'Guiuan':'Borongan City'}','${staff}') returning id`)).rows[0].id;
+      for(const [n,id] of people.entries()) await db.exec(`insert into volunteer_registrations(opportunity_id,volunteer_id,status,volunteer_hours) values('${activity}','${id}','${index===5?'registered':'completed'}',${index===5?99:n===2?4:8})`);
+    }
+    // Actual service does not imply public consent.
+    assert.equal((await as('anon',null,'select * from get_community_recognition()')).length,0);
+    for(const [n,id] of people.entries()) await as('authenticated',id,`update profiles set public_alias='Helper ${n}',show_on_leaderboard=true where id='${id}'`);
+    const publicRows=await as('anon',null,'select * from get_community_recognition()');
+    assert.deepEqual(publicRows.map(row=>Number(row.rank)),[1,1,2]);
+    assert.deepEqual(publicRows.map(row=>Number(row.verified_hours)),[40,40,20]);
+    assert.equal(Number(publicRows[0].completed_activities),5);
+    assert.equal(publicRows[0].badges.length,5);
+    assert.equal(JSON.stringify(publicRows).includes('PRIVATE'),false);
+    assert.deepEqual(Object.keys(publicRows[0]).sort(),['rank','public_alias','verified_hours','completed_activities','badges'].sort());
+    const mine=(await as('authenticated',people[0],'select get_my_recognition() result'))[0].result;
+    assert.equal(mine.history.length,5);
+    assert.equal(Number(mine.verified_hours),40);
+    assert.equal(Number(mine.rank),1);
+    await assert.rejects(as('anon',null,'select * from private.recognition_totals'),/permission denied/);
+    await assert.rejects(as('authenticated',people[0],'select * from private.recognition_totals'),/permission denied/);
+    assert.equal((await as('authenticated',people[0],`select id from profiles where id='${people[1]}'`)).length,0);
+    await as('authenticated',people[0],`update profiles set show_on_leaderboard=false where id='${people[0]}'`);
+    assert.equal((await as('anon',null,'select * from get_community_recognition()')).length,2);
+    assert.equal((await as('authenticated',people[0],'select get_my_recognition() result'))[0].result.history.length,5);
+    await db.exec(`update volunteer_registrations set status='no_show' where volunteer_id='${people[1]}'`);
+    assert.equal((await as('anon',null,'select * from get_community_recognition()')).length,1);
+    const revoked=(await as('authenticated',people[1],'select get_my_recognition() result'))[0].result;
+    assert.deepEqual(revoked.badges,[]); assert.equal(Number(revoked.verified_hours),0);
+    // Attended hours are verified but do not award a completion milestone.
+    await db.exec(`update volunteer_registrations set status='attended' where volunteer_id='${people[1]}'`);
+    const attended=(await as('authenticated',people[1],'select get_my_recognition() result'))[0].result;
+    assert.equal(Number(attended.completed_activities),0); assert.deepEqual(attended.badges,[]);
+    const thresholds=await db.query(`select private.recognition_badges(39,4,2,1) low, private.recognition_badges(40,5,3,2) high`);
+    assert.deepEqual(thresholds.rows[0].low,['first-community-action','active-volunteer']); assert.equal(thresholds.rows[0].high.length,5);
+  } finally {await db.close();}
 });
