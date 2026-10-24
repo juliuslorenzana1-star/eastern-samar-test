@@ -111,6 +111,8 @@ try {
     assert.equal(await page.evaluate(() => document.body.style.overflow), '');
     await page.getByRole('button', { name: 'SMART ESTE tour', exact: true }).click();
     await page.locator('.smart-tour-dialog').waitFor();
+    // Escape belongs to the modal once its scheduled focus transfer completes.
+    await page.waitForFunction(() => document.querySelector('.smart-tour-dialog')?.contains(document.activeElement));
     await page.keyboard.press('Escape');
     await page.locator('.smart-tour-dialog').waitFor({ state: 'detached' });
     assert.equal(await page.evaluate(() => document.activeElement?.textContent?.includes('SMART ESTE tour')), true);
