@@ -2,13 +2,15 @@
 
 ## Current disposition
 
-Frontend build and local verification pass. **Production integration is not yet qualified.** No production deployment, migration, credentials or account roles were changed. Preview creation was attempted on the existing Vercel project, but both file upload and direct deployment returned HTTP 403 even after the user reported approving the team consent link.
+After the user explicitly requested deployment to `main`, frontend commit `211c028e09fd60f2f977087e7b0191a0bcae1703` was fast-forwarded into `main` and pushed. Vercel's Git integration deployed it successfully as `dpl_5rEUz5opQsv6WF5hS9RGEiA4b5TG`, with the production alias serving the new version. Real public-browser checks pass against https://eastern-samar-test.vercel.app/.
+
+**Database integration is not yet qualified.** No database migration, credentials or account roles were changed. The new totals RPC still returns 404 pending the reviewed database repair. Earlier direct API preview attempts returned HTTP 403; this did not prevent the Git-triggered production deployment after pushing `main`.
 
 - Vercel project: `prj_cUWQhH3NFDe5Jfe4KZAq77IQCaRw` (`eastern-samar-test`).
 - Owning team: `team_UBwUQgGSTrkPJ6O7I1QmOrJ8`, scope `ke-6937`.
-- Existing production deployment: `dpl_GzguegPoEWwjB5NrXmbN63xD7DVM`, commit `b6025fe2c0ac4ec28c39e1abe33f91917db4ea24`.
+- Frontend production release: `dpl_5rEUz5opQsv6WF5hS9RGEiA4b5TG`, commit `211c028e09fd60f2f977087e7b0191a0bcae1703`.
 - Supabase project: `xoitncotbgobcsdmvyjb`.
-- Working branch: `codex/platform-completion`.
+- Release branch: `main` (implementation branch retained as `codex/platform-completion`).
 
 ## Verification evidence
 
@@ -55,7 +57,7 @@ The live security advisor reports intentionally callable role/aggregate RPCs, un
 
 ## Preview deployment and final acceptance
 
-The compiled artifact is staged locally under ignored `test-results.local/preview-artifact-*`; `scripts/preview-artifact.mjs` reads compiled public assets only. No preview URL was created: Vercel rejected `POST /v2/files` and `POST /v13/deployments` under scope `ke-6937` with 403. Team access confirmation in chat did not result in API authorization. Complete the consent flow as a team member with the intended Vercel account; a team owner may need to resolve the connector grant. The connection can then retry the same existing project/team. Do not create another project or change production to bypass the error.
+The frontend is now live through the existing Git integration after explicit approval to push `main`. The earlier compiled preview artifact remains under ignored `test-results.local/preview-artifact-*`; `scripts/preview-artifact.mjs` reads compiled public assets only. No separate preview URL was created: Vercel rejected direct `POST /v2/files` and `POST /v13/deployments` under scope `ke-6937` with 403. This API authorization issue remains relevant to future direct deployments, although the Git integration successfully deployed production. A team owner may need to resolve the connector grant; do not create another project to bypass the error.
 
 Alternatively, an already-authorized local operator can use Vercel CLI: inspect `vercel deploy --help`, link this directory to the exact existing team/project if necessary, then run `vercel deploy --target preview --scope ke-6937`. Configure the preview to use staging Supabase when testing writes. Do not run `--prod`. Validate root/assets and `/operations/`, Auth redirects, public read filtering, all four staging journeys, and the complete registration-capacity race with independent sessions. Promote only after explicit production approval and acceptance.
 

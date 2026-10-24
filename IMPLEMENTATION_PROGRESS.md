@@ -2,6 +2,8 @@
 
 ## Current status
 
+Release update after explicit user authorization: implementation commit `211c028` is on GitHub `main` and deployed to https://eastern-samar-test.vercel.app/ by Vercel deployment `dpl_5rEUz5opQsv6WF5hS9RGEiA4b5TG` (READY). Public read-only browser checks pass against the actual production URL. Database repair remains pending; `platform_statistics` returns 404. The earlier phase record below describes implementation-time gates, with this release update superseding the frontend deployment/branch statements.
+
 Local implementation and verification are complete for the changes below. Production integration remains externally gated. Branch: `codex/platform-completion`. Existing uncommitted UI/emergency/offline work was retained and audited; unsourced phone data was preserved for provenance but withheld from the public interface. No production records, account roles, credentials or deployment aliases were changed.
 
 The verified in-scope working state is recorded as a local milestone commit, including the preserved pre-existing UI/offline work. No branch was pushed.
