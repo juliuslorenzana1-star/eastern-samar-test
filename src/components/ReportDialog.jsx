@@ -1,21 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapPin, Plus, ShieldCheck, X } from 'lucide-react';
+import { MapPin, Plus, ShieldCheck, WifiOff, X } from 'lucide-react';
 import { MUNICIPALITIES as municipalities } from '../lib/place.js';
 import { validateEvidenceFile } from '../lib/reports.js';
+import { saveOfflineDraft } from '../lib/offline-drafts.js';
 import useDialogFocus from '../lib/useDialogFocus.js';
 
-export default function ReportDialog({ categories, location, hidden, onClose, onPickLocation, onSubmit }) {
+export default function ReportDialog({ categories, location, hidden, userId, onClose, onPickLocation, onSubmit, onDraftSaved }) {
   const [form, setForm] = useState({ title: '', category: '', municipality: '', barangay: '', description: '', incidentAt: '', neededBy: '', priority: 'normal' });
   const [evidence, setEvidence] = useState(null);
   const [preview, setPreview] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
   const dialogRef = useDialogFocus({ active: !hidden, busy, onClose });
   const submitLock = useRef(false);
 
   useEffect(() => () => {
     if (preview) URL.revokeObjectURL(preview);
   }, [preview]);
+
+  useEffect(() => {
+    function handleOnline() { setIsOffline(false); }
+    function handleOffline() { setIsOffline(true); }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   function update(event) {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -35,6 +48,27 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
     } catch (fileError) {
       event.target.value = '';
       setError(fileError.message);
+    }
+  }
+
+  function handleSaveOffline() {
+    if (!form.title.trim() || !form.municipality || !form.description.trim()) {
+      setError('To save an offline draft, please fill in at least the Title, Municipality, and Description.');
+      return;
+    }
+    try {
+      saveOfflineDraft({
+        ...form,
+        ownerId: userId,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        category: form.category || categories[0]?.slug || '',
+        location,
+      });
+      if (onDraftSaved) onDraftSaved();
+      onClose();
+    } catch (draftError) {
+      setError(draftError.message || 'Could not save offline draft.');
     }
   }
 
@@ -70,6 +104,14 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
           <div><span className="eyebrow">COMMUNITY REPORT</span><h2 id="report-form-title">Add a concern</h2></div>
           <button className="icon-button" disabled={busy} onClick={onClose} aria-label="Close report form"><X size={19} /></button>
         </div>
+
+        {isOffline && (
+          <div className="offline-notice-banner" role="status">
+            <WifiOff size={15} />
+            <span><strong>Offline Mode:</strong> No internet connection detected. You can draft your report now and save it to your device to sync later.</span>
+          </div>
+        )}
+
         <p className="modal-intro">Reports begin private and pending review. Don’t include names or details that could identify vulnerable people. When configured, title and description may be screened by an external service; its flags are advisory and a human moderator decides publication.</p>
         <form onSubmit={submit}>
           <fieldset className="report-form-section" disabled={busy}>
@@ -129,7 +171,21 @@ export default function ReportDialog({ categories, location, hidden, onClose, on
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="modal-foot">
             <span><ShieldCheck size={14} /> Private until reviewed</span>
-            <button className="primary-button" type="submit" disabled={busy || !categories.length}><Plus size={16} /> {busy ? 'Submitting…' : 'Submit report'}</button>
+            <div className="modal-foot-actions">
+              {(isOffline || error) && (
+                <button
+                  type="button"
+                  className="outline-button offline-save-btn"
+                  onClick={handleSaveOffline}
+                  title="Save this report to device memory to sync when back online"
+                >
+                  <WifiOff size={14} /> Save Draft
+                </button>
+              )}
+              <button className="primary-button" type="submit" disabled={busy || !categories.length}>
+                <Plus size={16} /> {busy ? 'Submitting…' : 'Submit report'}
+              </button>
+            </div>
           </div>
         </form>
       </section>

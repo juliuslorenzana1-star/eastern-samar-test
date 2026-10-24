@@ -4,6 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "typecheck:functions": "npm exec --yes --package=deno@2.9.6 -- deno check supabase/functions/analyze-report/index.ts supabase/functions/send-email-notification/index.ts",
+    "test:browser": "node tests/run-browser.mjs",
+    "test:public:live": "node tests/public-live-browser.mjs",
+    "test": "node --test tests/*.test.mjs supabase/functions/send-email-notification/index.test.mjs",
+    "test:database": "node --test tests/database.integration.mjs",
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "lint": "oxlint",
@@ -13,19 +18,23 @@
     "test:interface:browser": "node tests/interface-browser.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.2",
-    "leaflet": "^1.9.4",
-    "lucide-react": "^0.468.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-leaflet": "^5.0.0"
+    "@supabase/supabase-js": "2.117.2",
+    "leaflet": "1.9.4",
+    "lucide-react": "0.468.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-leaflet": "5.0.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
-    "oxlint": "^1.81.0",
+    "@electric-sql/pglite": "0.5.11",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "oxlint": "1.86.0",
     "playwright-core": "1.64.1",
-    "vite": "^8.3.0"
+    "vite": "8.3.5"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.0.0"
   }
 }

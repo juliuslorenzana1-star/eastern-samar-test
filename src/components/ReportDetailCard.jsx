@@ -1,6 +1,9 @@
 import { CalendarClock, Clock3, Crosshair, MapPin, X } from 'lucide-react';
 import { formatStatus } from '../lib/reports.js';
 import { PROVINCE, isReviewed, provinceContext } from '../lib/place.js';
+import { hasCoordinates } from '../lib/place.js';
+import { reportLifecycle } from '../lib/report-validation.js';
+import ReportProgress from './ReportProgress.jsx';
 
 const priorityLabels = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
 
@@ -11,11 +14,12 @@ function dayValue(value) {
 
 // The information panel for a selected marker. Every line comes from columns
 // already returned by src/lib/reports.js — nothing is invented here.
-export default function ReportDetailCard({ report, categoryName, markerColor, statusColorValue, decision, onClose }) {
+export default function ReportDetailCard({ report, categoryName, markerColor, statusColorValue, decision, canViewEvidence = false, onClose }) {
   if (!report) return null;
   const trail = provinceContext(report);
   const reviewed = isReviewed(report.status);
-  const coordinates = Number.isFinite(Number(report.latitude)) && Number.isFinite(Number(report.longitude))
+  const lifecycle = reportLifecycle(report);
+  const coordinates = hasCoordinates(report)
     ? `${Number(report.latitude).toFixed(4)}, ${Number(report.longitude).toFixed(4)}`
     : 'No map point yet';
 
@@ -51,6 +55,8 @@ export default function ReportDetailCard({ report, categoryName, markerColor, st
       <p className="detail-description">{report.description}</p>
 
       <dl className="detail-facts">
+        <div><dt>Verification</dt><dd>{formatStatus(lifecycle.verification)}</dd></div>
+        <div><dt>Resolution</dt><dd>{formatStatus(lifecycle.resolution)}</dd></div>
         <div><dt>Urgency</dt><dd>{priorityLabels[report.priority] ?? report.priority}</dd></div>
         <div><dt>Submitted</dt><dd>{dayValue(report.created_at) ?? '—'}</dd></div>
         {report.incident_at && <div><dt>Incident date</dt><dd>{dayValue(report.incident_at)}</dd></div>}
@@ -61,6 +67,7 @@ export default function ReportDetailCard({ report, categoryName, markerColor, st
       </dl>
 
       {decision && <p className="report-decision">{decision}</p>}
+      <ReportProgress key={report.id} report={report} canViewEvidence={canViewEvidence} />
 
       <div className="detail-foot">
         <span>{PROVINCE.name} · community submission</span>

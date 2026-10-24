@@ -82,6 +82,8 @@ export async function fetchVolunteerLeaderboard() {
 }
 
 export async function fetchVolunteerPrivacy(userId) {
+  if (!supabase) throw new Error('The shared database is not configured.');
+  if (!userId) throw new Error('Sign in to manage your public visibility.');
   const { data, error } = await supabase.from('profiles').select('public_alias').eq('id', userId).single();
   if (error) throw new Error('Public aliases need the pending database update. You can still keep your participation private.');
   return data;

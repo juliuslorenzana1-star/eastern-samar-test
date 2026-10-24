@@ -55,7 +55,6 @@ export default function OperationsCommand() {
   const [reset] = useState(0);
   const [clock, setClock] = useState(() => new Date());
   const searchRef = useRef(null);
-  const feedRef = useRef(null);
   const epoch = useRef(0);
   useEffect(() => {
     if (!supabase) return;
@@ -99,7 +98,7 @@ export default function OperationsCommand() {
     return () => clearInterval(timer);
   }, [access, refresh]);
   useEffect(() => { const timer = setInterval(() => setClock(new Date()), 60000); return () => clearInterval(timer); }, []);
-  useEffect(() => { if (selected) feedRef.current?.scrollTo({ top: 0 }); }, [selected]);
+  useEffect(() => { if (selected) feedDialog.current?.scrollTo({ top: 0 }); }, [feedDialog, selected]);
   useEffect(() => {
     const handler = (event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'k') { event.preventDefault(); searchRef.current?.focus(); } if (event.key === 'Escape') { setInspecting(null); setMenu(false); setFiltersOpen(false); } };
     window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
@@ -156,7 +155,7 @@ export default function OperationsCommand() {
     {managementView && <div className={`ops-management mode-${section.split(' ')[0].toLowerCase()}`}><ModeratorDashboard {...managementProps} /></div>}
     {section === 'Community Analytics' && <section className="ops-analytics"><h2>Report distribution</h2><p>Counts reflect up to 500 authorized reports loaded from the current backend.</p>{MUNICIPALITIES.map((name) => { const total = rows.filter((report) => report.municipality === name).length; return <div key={name}><span>{name}</span><meter value={total} min="0" max={Math.max(rows.length, 1)} /><strong>{reports === null ? '—' : total}</strong></div>; })}</section>}
     {section === 'Activity Logs' && <section className="ops-history"><h2>Report status history</h2><p>Existing database-generated report events. Most recent 100 records; this is not a complete administrative audit log.</p>{events?.map((event) => <article key={event.id}><small>{time(event.created_at)}</small><strong>{formatStatus(event.status)}</strong><span>Report {event.report_id} · Actor {event.actor_id || 'Unavailable'}</span>{event.note && <p>{event.note}</p>}</article>)}{!events?.length && <p>{events === null ? 'History is unavailable.' : 'No recorded report events.'}</p>}</section>}
-    </main><aside ref={(node) => { feedRef.current = node; feedDialog.current = node; }} role={mobile && feedOpen ? 'dialog' : undefined} aria-modal={mobile && feedOpen ? true : undefined} tabIndex={-1} className="ops-feed" id="operations-feed" aria-label="Operations feed and selected report" hidden={!feedOpen}><button type="button" className="ops-feed-close" aria-label="Close operations feed" onClick={() => setFeedOpen(false)}><X size={19} /></button>
+    </main><aside ref={feedDialog} role={mobile && feedOpen ? 'dialog' : undefined} aria-modal={mobile && feedOpen ? true : undefined} tabIndex={-1} className="ops-feed" id="operations-feed" aria-label="Operations feed and selected report" hidden={!feedOpen}><button type="button" className="ops-feed-close" aria-label="Close operations feed" onClick={() => setFeedOpen(false)}><X size={19} /></button>
       {activeReport && mapView && <div className="ops-selection-dock"><div className="ops-panel-title"><Crosshair size={14} /> SELECTED REPORT</div><SelectionSummary report={activeReport} categoryName={categoryNames[activeReport.category_slug]} onClose={() => setSelected(null)} onInspect={() => setInspecting(activeReport)} /></div>}
       <div className="ops-panel-title"><Radio size={15} /> OPERATIONS FEED <i /></div><p className="ops-feed-intro">Report status changes<span>Refreshes every 60 seconds</span></p>
       {events?.slice(0, 12).map((event) => <button key={event.id} onClick={() => { const report = rows.find((item) => item.id === event.report_id); if (report) { navigate('Overview'); setSelected(report); } }} disabled={!rows.some((item) => item.id === event.report_id)}><div className="ops-event-line"><i style={{ background: statusColor(event.status, 'dark') }} /><strong>{formatStatus(event.status)}</strong></div><span>{rows.find((item) => item.id === event.report_id)?.title || `Report ${event.report_id.slice(0, 8)}`}</span><small><Clock3 size={10} />{time(event.created_at)}</small></button>)}

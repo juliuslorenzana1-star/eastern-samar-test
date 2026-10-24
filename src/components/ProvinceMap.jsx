@@ -3,6 +3,9 @@ import { GeoJSON, MapContainer, Marker, Polygon, Popup, TileLayer, useMap, useMa
 import { divIcon } from 'leaflet';
 import { CalendarDays, Compass, Crosshair, Layers3, MapPin, Minus, Plus, Users } from 'lucide-react';
 import easternSamarBoundary from '../assets/eastern-samar-boundary.json';
+import municipalBoundaries from '../assets/eastern-samar-municipalities.json';
+import { clusterReports } from '../lib/mapClusters.js';
+import { formatStatus } from '../lib/reports.js';
 import CategorySheet from './CategorySheet.jsx';
 import usePhoneLayout from '../lib/useMediaQuery.js';
 import { observeMapViewport } from '../lib/mapViewport.js';
@@ -52,11 +55,37 @@ function MapHandle({ onReady }) {
   return null;
 }
 
+function ReportMarkers({ reports, selected, theme, categories, onSelect }) {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useMapEvents({ zoomend() { setZoom(map.getZoom()); } });
+  const groups = useMemo(() => clusterReports(reports, zoom), [reports, zoom]);
+  return groups.map((group) => group.items.length > 1 ? <Marker key={group.id} position={group.position}
+    title={`${group.items.length} community concerns. Zoom or open to inspect.`}
+    icon={divIcon({ className:'report-cluster-shell',html:`<span class="report-cluster" style="width:40px;height:40px">${group.items.length}</span>`,iconSize:[40,40],iconAnchor:[20,20] })}
+    eventHandlers={{ click: () => { if (map.getZoom()<map.getMaxZoom()) map.flyTo(group.position,Math.min(map.getZoom()+2,map.getMaxZoom()),{ animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches }); } }}>
+    <Popup><div className="report-popup-content"><strong>{group.items.length} concerns in this area</strong>{group.items.map((report) => <button key={report.id} onClick={() => onSelect(report)}>{report.title}</button>)}</div></Popup>
+  </Marker> : (() => {
+    const report=group.items[0];
+    return <Marker key={report.id} position={group.position} title={report.title} icon={reportIcon(report,selected?.id===report.id,theme)} zIndexOffset={selected?.id===report.id?1200:0}>
+      <Popup><div className="report-popup-content"><strong>{report.title}</strong><span>{categories.find((category) => category.slug===report.category_slug)?.name || report.category_slug}</span><span>{[report.barangay,report.municipality].filter(Boolean).join(', ')}</span><span>{formatStatus(report.status)}</span><time>{new Date(report.created_at).toLocaleDateString('en-PH')}</time><p>{report.description.slice(0,160)}{report.description.length>160?'…':''}</p><button onClick={() => onSelect(report)}>View Details</button></div></Popup>
+    </Marker>;
+  })());
+}
+
 // Eastern Samar is the subject: the map opens fitted to the province, and the
 // container keeps panning inside the padded province bounds.
-function ProvinceViewport({ focus }) {
+function ProvinceViewport({ focus, area }) {
   const map = useMap();
   useEffect(() => observeMapViewport(map, PROVINCE.bounds), [map]);
+  useEffect(() => {
+    const feature=municipalBoundaries.features.find((feature) => feature.properties.municipality===area);
+    if (feature) {
+      const points=feature.geometry.coordinates.flat(feature.geometry.type==='MultiPolygon'?2:1);
+      const xs=points.map(([x])=>x),ys=points.map(([,y])=>y);
+      map.fitBounds([[Math.min(...ys),Math.min(...xs)],[Math.max(...ys),Math.max(...xs)]],{padding:[24,24],maxZoom:13});
+    }
+  },[map,area]);
   useEffect(() => {
     if (!focus?.latlng) return;
     const zoom = focus.zoom ?? Math.min(Math.max(map.getZoom(), 12), 15);
@@ -177,22 +206,15 @@ export default function ProvinceMap({
             fillOpacity: roadsVisible ? 0.12 : 1,
           }}
         />
+        <GeoJSON data={municipalBoundaries} style={(feature) => ({color:theme==='dark'?'#78b4b4':'#315b69',weight:feature.properties.municipality===area ? 3 : 1,fillOpacity:feature.properties.municipality===area ? .15 : 0,opacity:.7})} onEachFeature={(feature,layer) => layer.bindTooltip(feature.properties.municipality)} />
         <MapHandle onReady={handleReady} />
         <MapGestures mobile={mobile} enabled={touchActive} />
-        <ProvinceViewport focus={focus} />
+        <ProvinceViewport focus={focus} area={area} />
         <ClickCapture enabled={picking} onPick={onPick} />
         {pickLocation && (
           <Marker position={[pickLocation.lat, pickLocation.lng]} icon={pickIcon(theme)} interactive={false} />
         )}
-        {visible.map((report) => (
-          <Marker
-            key={report.id}
-            position={[Number(report.latitude), Number(report.longitude)]}
-            icon={reportIcon(report, selected?.id === report.id, theme)}
-            zIndexOffset={selected?.id === report.id ? 1200 : 0}
-            eventHandlers={{ click: () => onSelect(report) }}
-          />
-        ))}
+        <ReportMarkers reports={visible} selected={selected} theme={theme} categories={categories} onSelect={onSelect} />
         {visibleVolunteers.map((opportunity) => {
           const count = volunteerSignupCounts[opportunity.id] ?? 0;
           const remaining = opportunity.capacity ? Math.max(0, opportunity.capacity - count) : null;

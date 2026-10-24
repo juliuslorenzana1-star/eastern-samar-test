@@ -4,14 +4,18 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-function respond(body, status = 200) {
+type ScreeningStatus = 'pending' | 'unavailable' | 'failed' | 'completed';
+type ScreeningRun = { status: ScreeningStatus; model_name: string | null };
+type ModerationFlag = { flag_type: string; confidence: number; explanation: string };
+
+function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
 
-function serviceHeaders(serviceKey, json = false) {
+function serviceHeaders(serviceKey: string, json = false): Record<string,string> {
   return {
     apikey: serviceKey,
     Authorization: `Bearer ${serviceKey}`,
@@ -19,7 +23,7 @@ function serviceHeaders(serviceKey, json = false) {
   };
 }
 
-async function writeRun(projectUrl, serviceKey, reportId, status, modelName = null) {
+async function writeRun(projectUrl: string, serviceKey: string, reportId: string, status: ScreeningStatus, modelName: string | null = null) {
   const response = await fetch(`${projectUrl}/rest/v1/ai_review_runs?on_conflict=report_id`, {
     method: 'POST',
     headers: {
@@ -37,7 +41,7 @@ async function writeRun(projectUrl, serviceKey, reportId, status, modelName = nu
   if (!response.ok) throw new Error('screening_status_write_failed');
 }
 
-async function readRun(projectUrl, serviceKey, reportId) {
+async function readRun(projectUrl: string, serviceKey: string, reportId: string): Promise<ScreeningRun | null> {
   const url = new URL(`${projectUrl}/rest/v1/ai_review_runs`);
   url.searchParams.set('report_id', `eq.${reportId}`);
   url.searchParams.set('select', 'status,model_name');
@@ -47,7 +51,7 @@ async function readRun(projectUrl, serviceKey, reportId) {
   return runs[0] ?? null;
 }
 
-async function claimRun(projectUrl, serviceKey, reportId, modelName, existingRun) {
+async function claimRun(projectUrl: string, serviceKey: string, reportId: string, modelName: string, existingRun: ScreeningRun | null) {
   const body = {
     report_id: reportId,
     status: 'pending',
@@ -75,25 +79,27 @@ async function claimRun(projectUrl, serviceKey, reportId, modelName, existingRun
   return (await response.json()).length > 0;
 }
 
-function parseFlags(content) {
-  const parsed = JSON.parse(content);
+function parseFlags(content: string): ModerationFlag[] {
+  const parsed: unknown = JSON.parse(content);
   const allowedTypes = new Set(['spam', 'abuse', 'irrelevant', 'other']);
-  if (!Array.isArray(parsed?.flags)) throw new Error('invalid_screening_response');
-  return parsed.flags.slice(0, 3).map((flag) => {
-    const confidence = Number(flag?.confidence);
-    const explanation = typeof flag?.explanation === 'string' ? flag.explanation.trim() : '';
-    if (!allowedTypes.has(flag?.type) || !Number.isFinite(confidence) || confidence < 0 || confidence > 1 || !explanation) {
+  if (typeof parsed !== 'object' || parsed === null || !('flags' in parsed) || !Array.isArray(parsed.flags)) throw new Error('invalid_screening_response');
+  return parsed.flags.slice(0, 3).map((flag: unknown) => {
+    const candidate = typeof flag === 'object' && flag !== null ? flag as Record<string, unknown> : {};
+    const type = candidate.type;
+    const confidence = candidate.confidence;
+    const explanation = typeof candidate.explanation === 'string' ? candidate.explanation.trim() : '';
+    if (typeof type !== 'string' || !allowedTypes.has(type) || typeof confidence !== 'number' || !Number.isFinite(confidence) || confidence < 0 || confidence > 1 || !explanation) {
       throw new Error('invalid_screening_flag');
     }
     return {
-      flag_type: flag.type,
+      flag_type: type,
       confidence,
       explanation: explanation.slice(0, 600),
     };
   });
 }
 
-async function writeFlags(projectUrl, serviceKey, reportId, modelName, flags) {
+async function writeFlags(projectUrl: string, serviceKey: string, reportId: string, modelName: string, flags: ModerationFlag[]) {
   if (!flags.length) return;
   const response = await fetch(`${projectUrl}/rest/v1/ai_review_flags`, {
     method: 'POST',

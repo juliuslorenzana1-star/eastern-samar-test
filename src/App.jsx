@@ -2,14 +2,17 @@ import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef
 import {
   Activity, ArrowDownUp, ArrowRight, CalendarDays, Check, ChevronDown,
   CircleHelp, Compass, Filter, HeartPulse, Inbox, Layers3, LogOut, MapPin,
-  Menu, Plus, Search, ShieldCheck, Users, X,
+  Menu, PhoneCall, Plus, Search, ShieldCheck, Users, WifiOff, X,
 } from 'lucide-react';
 import AuthDialog from './components/AuthDialog.jsx';
-import ProvinceMap from './components/ProvinceMap.jsx';
+import EmergencyHotlineDrawer from './components/EmergencyHotlineDrawer.jsx';
 import ProvincePulse from './components/ProvincePulse.jsx';
 import ReportDialog from './components/ReportDialog.jsx';
 import ReportDetailCard from './components/ReportDetailCard.jsx';
 import ThemeToggle from './components/ThemeToggle.jsx';
+import CivicOverview from './components/CivicOverview.jsx';
+import ReportTrends from './components/ReportTrends.jsx';
+import NetworkStatus from './components/NetworkStatus.jsx';
 import { finishWelcome, needsWelcome } from './lib/onboarding.js';
 import { isSupabaseConfigured, supabase } from './lib/supabase.js';
 import {
@@ -29,8 +32,10 @@ import {
 import {
   applyThemeMode, readStoredThemeMode, resolveThemeMode, storeThemeMode, watchSystemTheme,
 } from './lib/theme.js';
+import { getOfflineDrafts, removeOfflineDraft, syncOfflineDrafts } from './lib/offline-drafts.js';
 
 const ModeratorDashboard = lazy(() => import('./components/ModeratorDashboard.jsx'));
+const ProvinceMap = lazy(() => import('./components/ProvinceMap.jsx'));
 const VolunteerBoard = lazy(() => import('./components/VolunteerBoard.jsx'));
 const SmartEsteWelcome = lazy(() => import('./components/SmartEsteWelcome.jsx'));
 
@@ -65,6 +70,8 @@ function decisionText(report) {
 
 function App() {
   const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(Boolean(supabase));
+  const [profileVersion,setProfileVersion] = useState(0);
   const [profile, setProfile] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const [reports, setReports] = useState([]);
@@ -80,6 +87,9 @@ function App() {
   const [area, setArea] = useState('all');
   const [status, setStatus] = useState('all');
   const [dateRange, setDateRange] = useState('all');
+  const [olderBusy, setOlderBusy] = useState(false);
+  const [olderExhausted, setOlderExhausted] = useState(false);
+  const [listLimit, setListLimit] = useState(30);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -94,11 +104,28 @@ function App() {
   const [themeMode, setThemeMode] = useState(() => readStoredThemeMode());
   const [systemTick, setSystemTick] = useState(0);
   const [focus, setFocus] = useState(null);
+  const focusNonce = useRef(0);
   const [volunteerMapData, setVolunteerMapData] = useState({ opportunities: [], signupCounts: {} });
   const [volunteerInitial, setVolunteerInitial] = useState(null);
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [welcomeTour, setWelcomeTour] = useState(null);
+  const [hotlinesOpen, setHotlinesOpen] = useState(false);
+  const [, setOfflineDraftCount] = useState(0);
+  const [syncingDrafts, setSyncingDrafts] = useState(false);
+
   const sessionUserId = session?.user?.id;
+  const authUserRef = useRef(null);
+  const offlineDraftCount = getOfflineDrafts(sessionUserId || null).length;
+
+  // Track offline drafts changes
+  useEffect(() => {
+    function handleDraftsChanged() {
+      setOfflineDraftCount((revision) => revision + 1);
+    }
+    window.addEventListener('smart_este_drafts_changed', handleDraftsChanged);
+    return () => window.removeEventListener('smart_este_drafts_changed', handleDraftsChanged);
+  }, []);
+
   // The signup metadata survives an email-confirmation redirect or a different
   // device. Completion is remembered per account on this browser.
   useEffect(() => {
@@ -114,6 +141,7 @@ function App() {
     show();
     return () => observer.disconnect();
   }, [session?.user, formOpen, authMode, welcomeTour]);
+
   const openedEmailLink = useRef('');
   const handleEmailLink = useEffectEvent(() => {
     const hash = window.location.hash.slice(1);
@@ -133,12 +161,19 @@ function App() {
     openedEmailLink.current = hash;
     setView('map'); setShowSubmissions(true); setPanelOpen(true); setSelected(report);
   });
-  useEffect(() => { handleEmailLink(); }, [myReports, sessionUserId]);
-  const isStaff = profile?.role === 'moderator' || profile?.role === 'admin';
+  useEffect(() => {
+    const sync = () => handleEmailLink();
+    const timer = window.setTimeout(sync,0);
+    window.addEventListener('hashchange',sync);
+    return () => { window.clearTimeout(timer); window.removeEventListener('hashchange',sync); };
+  }, [myReports, sessionUserId]);
+
+  const isStaff = profile?.id === sessionUserId && (profile?.role === 'moderator' || profile?.role === 'admin');
   const updateVolunteerMapData = useCallback((opportunities, signupCounts) => {
     setVolunteerMapData({ opportunities, signupCounts });
   }, []);
   const clearVolunteerInitial = useCallback(() => setVolunteerInitial(null), []);
+
   // Resolved once per render: a "system" preference re-resolves whenever the
   // operating system reports a change (see systemTick below).
   const theme = resolveThemeMode(themeMode);
@@ -172,8 +207,9 @@ function App() {
   useEffect(() => {
     if (!supabase) return undefined;
     let active = true;
+    let authChanged = false;
     supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return;
+      if (!active || authChanged) return;
       if (error) {
         setLoadError('We could not restore your sign-in session. Check your connection and try again.');
         return;
@@ -181,8 +217,16 @@ function App() {
       setSession(data?.session ?? null);
     }).catch(() => {
       if (active) setLoadError('We could not restore your sign-in session. Check your connection and try again.');
-    });
+    }).finally(() => { if(active) setAuthLoading(false); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      authChanged = true;
+      setAuthLoading(false);
+      if (event === 'TOKEN_REFRESHED') { setProfile(null); setProfileVersion(value=>value+1); }
+      if (authUserRef.current !== nextSession?.user?.id) {
+        authUserRef.current = nextSession?.user?.id;
+        setProfile(null); setProfiles([]); setQueue([]); setMyReports([]);
+        setSelected(null); setShowSubmissions(false);
+      }
       setSession(nextSession);
       if (!nextSession) {
         setWelcomeMessage('');
@@ -204,10 +248,6 @@ function App() {
 
   useEffect(() => {
     if (!supabase) {
-      setReports([]);
-      setCategories([]);
-      setMyReports([]);
-      setLoading(false);
       return undefined;
     }
     let active = true;
@@ -232,7 +272,7 @@ function App() {
   // The moderation queue is a separate request that only runs for staff. Residents
   // never issue it, so a pending submission can never reach the map state.
   useEffect(() => {
-    if (!isStaff) { setQueue([]); return undefined; }
+    if (!isStaff) return undefined;
     let active = true;
     fetchReports().then((data) => { if (active) setQueue(data); }).catch((error) => { if (active) setNotice(error.message); });
     return () => { active = false; };
@@ -242,10 +282,25 @@ function App() {
     if (!sessionUserId) return undefined;
     let active = true;
     fetchProfile(sessionUserId)
-      .then((nextProfile) => { if (active) setProfile(nextProfile); })
+      .then((nextProfile) => { if (active) { setProfile(nextProfile); if (!['moderator','admin'].includes(nextProfile?.role)) setQueue([]); } })
       .catch(() => { if (active) setLoadError('Your account profile could not be loaded. Refresh and try again.'); });
     return () => { active = false; };
-  }, [sessionUserId]);
+  }, [sessionUserId,profileVersion]);
+
+  useEffect(() => {
+    if (!sessionUserId) return undefined;
+    let active=true;
+    const refresh=async()=> {
+      if(document.hidden || !navigator.onLine) return;
+      try {
+        const own=await fetchMyReports(sessionUserId);
+        if(active) {setMyReports(own);setMyReportsError('');}
+      }catch(error){if(active)setMyReportsError(error.message || 'Your submissions could not refresh.');}
+    };
+    const interval=window.setInterval(refresh,60000);
+    document.addEventListener('visibilitychange',refresh);
+    return ()=> {active=false;window.clearInterval(interval);document.removeEventListener('visibilitychange',refresh);};
+  },[sessionUserId]);
 
   useEffect(() => {
     if (profile?.role !== 'admin') return undefined;
@@ -255,6 +310,33 @@ function App() {
   }, [profile?.role]);
 
   const categoryNames = Object.fromEntries(categories.map((item) => [item.slug, item.name]));
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      if (!supabase || document.hidden || !navigator.onLine) return;
+      try {
+        const next = await fetchPublicReports();
+        if (active) {
+          setReports(next);
+          setOlderExhausted(next.length < 500);
+        }
+      } catch { /* Keep the last successful data on a transient background error. */ }
+    };
+    const interval = window.setInterval(refresh,60000);
+    document.addEventListener('visibilitychange',refresh);
+    return () => {active=false;window.clearInterval(interval);document.removeEventListener('visibilitychange',refresh);};
+  }, []);
+
+  async function loadOlderReports() {
+    if (olderBusy) return;
+    setOlderBusy(true);
+    try {
+      const older = await fetchPublicReports({offset:reports.length});
+      setReports(current => [...current,...older.filter(report=>!current.some(item=>item.id===report.id))]);
+      setOlderExhausted(older.length < 500);
+    } catch {setNotice('Older reports could not be loaded. Check your connection and try again.');}
+    finally {setOlderBusy(false);}
+  }
   // Local figures are derived from the reports already in memory — no extra
   // queries, and nothing is padded with estimates.
   const places = useMemo(() => placeOptions(reports), [reports]);
@@ -289,16 +371,21 @@ function App() {
     ? `${myReports.length} ${myReports.length === 1 ? 'submission' : 'submissions'}`
     : `${filtered.length} ${filtered.length === 1 ? 'report' : 'reports'}`;
 
+  // Refresh all three data sets independently so a staff-queue failure does not
+  // discard freshly loaded public reports or own submissions.
   async function reloadReports() {
-    const [publicData, myData, queueData] = await Promise.all([
+    const [publicResult, myResult, queueResult] = await Promise.allSettled([
       fetchPublicReports(),
       sessionUserId ? fetchMyReports(sessionUserId) : Promise.resolve([]),
       isStaff ? fetchReports() : Promise.resolve([]),
     ]);
-    setReports(publicData);
-    setMyReports(myData);
-    setMyReportsError('');
-    setQueue(queueData);
+    if (publicResult.status === 'fulfilled') setReports(publicResult.value);
+    if (myResult.status === 'fulfilled') { setMyReports(myResult.value); setMyReportsError(''); }
+    else if (myResult.status === 'rejected') setMyReportsError(myResult.reason?.message || 'Your submissions could not be refreshed.');
+    if (queueResult.status === 'fulfilled') setQueue(queueResult.value);
+    // Re-throw only if the public data failed so callers that depend on a fresh
+    // public list know the reload did not fully succeed.
+    if (publicResult.status === 'rejected') throw publicResult.reason;
   }
 
   function clearFilters() { setCategory('all'); setArea('all'); setStatus('all'); setDateRange('all'); setQuery(''); }
@@ -307,12 +394,12 @@ function App() {
   function focusOnPlace(place) {
     if (!place?.focus) return;
     if (place.type !== 'barangay' && place.municipality) setArea(place.municipality);
-    setFocus({ latlng: place.focus, zoom: place.type === 'barangay' ? 13 : 11, nonce: Date.now() });
+    setFocus({ latlng: place.focus, zoom: place.type === 'barangay' ? 13 : 11, nonce: ++focusNonce.current });
     if (window.innerWidth <= 900) setPanelOpen(false);
   }
   function openReport(report) {
     setSelected(report);
-    if (hasCoordinates(report)) setFocus({ latlng: [Number(report.latitude), Number(report.longitude)], zoom: 14, nonce: Date.now() });
+    if (hasCoordinates(report)) setFocus({ latlng: [Number(report.latitude), Number(report.longitude)], zoom: 14, nonce: ++focusNonce.current });
     if (window.innerWidth <= 900) setPanelOpen(false);
   }
   function startReport() {
@@ -323,6 +410,7 @@ function App() {
   }
   function startPicking() { setPicking(true); setFormOpen(false); setNotice('Click the map to place the report pin.'); }
   function pickPoint(point) { setLocation({ lat: point.lat, lng: point.lng }); setPicking(false); setFormOpen(true); setNotice('Location added to the report.'); }
+
   async function submitReport(values) {
     const { report, warning } = await createReport(values, session?.user?.id);
     // A successful insert must never be presented as a failed submission when
@@ -338,6 +426,26 @@ function App() {
     setPanelOpen(true);
     setNotice((warning || 'Report submitted and saved securely. Track it under My submissions — it appears on the map once a moderator approves it.') + refreshWarning);
   }
+
+  async function handleSyncOfflineDrafts() {
+    if (syncingDrafts) return;
+    setSyncingDrafts(true);
+    try {
+      const { synced, failed } = await syncOfflineDrafts(submitReport, sessionUserId || null);
+      if (synced > 0) {
+        setNotice(`Successfully uploaded ${synced} offline report${synced > 1 ? 's' : ''}!`);
+      }
+      if (failed > 0) {
+        setNotice(`${failed} draft${failed > 1 ? 's' : ''} could not sync. Check connection.`);
+      }
+      setOfflineDraftCount(getOfflineDrafts().length);
+    } catch (err) {
+      setNotice(err.message || 'Offline sync failed.');
+    } finally {
+      setSyncingDrafts(false);
+    }
+  }
+
   async function signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) setNotice('We could not sign you out. Please try again.');
@@ -418,10 +526,20 @@ function App() {
       <div className="topbar-center"><i className="live-indicator" /> {area === 'all' ? 'Province-wide view' : area} <span className="topbar-divider">/</span> <span>{view === 'review' ? 'Moderation queue' : view === 'volunteers' ? 'Volunteer opportunities' : 'Community reports'}</span></div>
       <div className="topbar-actions">
         {!isSupabaseConfigured && <span className="demo-label"><i /> Demo mode</span>}
+        <button
+          type="button"
+          className="emergency-hotline-trigger"
+          onClick={() => setHotlinesOpen(true)}
+          aria-label="Eastern Samar emergency hotlines"
+          title="Source-linked emergency contacts"
+        >
+          <PhoneCall size={14} className="hotline-pulse-icon" />
+          <span>Hotlines</span>
+        </button>
         <ThemeToggle mode={themeMode} onChange={chooseThemeMode} />
         <button className="outline-button volunteer-nav-button" onClick={() => setView(view === 'volunteers' ? 'map' : 'volunteers')} aria-label={view === 'volunteers' ? 'Return to community map' : 'Open volunteer opportunities'} title={view === 'volunteers' ? 'Community map' : 'Volunteer opportunities'}>{view === 'volunteers' ? <Compass size={14} /> : <Users size={14} />}<span>{view === 'volunteers' ? 'Map' : 'Volunteers'}</span></button>
         {isStaff && <><a className="outline-button" href={`${import.meta.env.BASE_URL}operations/`}>Operations command</a><button className="outline-button review-nav-button" onClick={() => setView(view === 'review' ? 'map' : 'review')}>{view === 'review' ? 'Community map' : 'Review queue'}</button></>}
-        {session?.user ? <><span className="account-label">{profile?.display_name || session.user.email}</span><button className="icon-button" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button></> : <button className="outline-button" onClick={() => { if (isSupabaseConfigured) { setAuthMode('sign-in'); setFormOpen(true); } else setNotice('Demo mode is active. Add Supabase keys to enable account sign-in and reporting.'); }}>Sign in</button>}
+        {session?.user ? <><span className="account-label">{profile?.display_name || session.user.email}</span><button className="icon-button" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button></> : <button className="outline-button" disabled={authLoading} onClick={() => { if (isSupabaseConfigured) { setAuthMode('sign-in'); setFormOpen(true); } else setNotice('Demo mode is active. Add Supabase keys to enable account sign-in and reporting.'); }}>{authLoading ? "Restoring session?" : "Sign in"}</button>}
         <button className="icon-button mobile-menu" onClick={() => view === 'volunteers' ? document.getElementById('volunteer-opportunities')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : setPanelOpen((open) => !open)} aria-label={view === 'volunteers' ? 'Find volunteer opportunities' : 'Open report filters'} title={view === 'volunteers' ? 'Find volunteer opportunities' : 'Open report filters'}><Menu size={20} /></button>
         <button className="primary-button top-report-button" onClick={startReport}><Plus size={16} /><span className="report-label-wide">Report a concern</span><span className="report-label-compact">Report</span></button>
       </div>
@@ -434,7 +552,21 @@ function App() {
       <button aria-current={activeNavigation === 'impact' ? 'page' : undefined} onClick={() => navigate('impact')}><Activity size={17} />Impact</button>
       {isStaff && <><button aria-current={view === 'review' ? 'page' : undefined} onClick={() => navigate('review')}><Layers3 size={17} />Administration</button><a className="navigation-operations" href={`${import.meta.env.BASE_URL}operations/`}><ShieldCheck size={16} />Operations</a></>}
     </nav>
-    <section className="dashboard-heading" id="top"><div className="heading-copy"><span className="eyebrow">OUR COAST. OUR COMMUNITIES.</span><h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'review' ? 'Make the next step count.' : view === 'volunteers' ? 'A little time. A local difference.' : 'Your community, in view.'}</h1><p>{view === 'review' ? 'Review concerns and help local action move forward.' : view === 'volunteers' ? 'Find an activity, lend your skills, and be part of something close to home.' : 'Explore local concerns. Find a place to help.'}</p></div>{view !== 'volunteers' && <div className="heading-meta"><span className="atlas-place-note"><MapPin size={16} />One city. Twenty-two municipalities.</span><button className="text-button" onClick={() => setNotice('Public reports are visible only after authorized staff approve them. Private exact locations and evidence are restricted by database policies.')}><CircleHelp size={16} /> About this map</button></div>}</section>
+    <NetworkStatus />
+    <section className="dashboard-heading" id="top">
+      <div className="heading-copy">
+        <span className="eyebrow">OUR COAST. OUR COMMUNITIES.</span>
+        <h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'review' ? 'Make the next step count.' : view === 'volunteers' ? 'A little time. A local difference.' : 'Your Community. Your Voice. Our Action.'}</h1>
+        <p>{view === 'review' ? 'Review concerns and help local action move forward.' : view === 'volunteers' ? 'Find an activity, lend your skills, and be part of something close to home.' : 'A community-powered platform where Eastern Samar residents can report local concerns, participate in volunteer initiatives, and contribute to a more responsive and resilient province.'}</p>
+      </div>
+      {view !== 'volunteers' && (
+        <div className="heading-meta">
+          <span className="atlas-place-note"><MapPin size={16} />One city. Twenty-two municipalities.</span>
+          <button className="text-button" onClick={() => setHotlinesOpen(true)}><PhoneCall size={14} /> Emergency Hotlines</button>
+          <button className="text-button" onClick={() => setNotice('Public reports are visible only after authorized staff approve them. Private exact locations and evidence are restricted by database policies.')}><CircleHelp size={16} /> About this map</button>
+        </div>
+      )}
+    </section>
     {!session?.user && <section className="community-intro" aria-label="Eastern Samar project introduction">
       <div>
         <span className="eyebrow">BUILT FOR ESTEHANONS</span>
@@ -444,6 +576,7 @@ function App() {
       <small>Developed by Julius Lorenzana</small>
     </section>}
     {loadError && <div className="app-error" role="alert"><strong>Unable to load the shared platform.</strong><span>{loadError}</span><button className="outline-button" onClick={() => window.location.reload()}>Try again</button></div>}
+    {view === 'map' && <CivicOverview staff={isStaff} reports={reports} activities={volunteerMapData.opportunities} onReport={startReport} onMap={() => navigate('map')} onVolunteer={() => navigate('volunteers')} />}
     <Suspense fallback={<section className="view-loading" role="status"><Compass size={22} /><strong>Opening {view === 'review' ? 'administration' : 'volunteer opportunities'}…</strong><span>The community map will be ready when you return.</span></section>}>
     {view === 'volunteers' ? <VolunteerBoard
       configured={isSupabaseConfigured}
@@ -460,7 +593,7 @@ function App() {
       onDataLoaded={updateVolunteerMapData}
       onShowOnMap={(opportunity) => {
         setSelected(null);
-        if (hasCoordinates(opportunity)) setFocus({ latlng: [Number(opportunity.latitude), Number(opportunity.longitude)], zoom: 14, nonce: Date.now() });
+        if (hasCoordinates(opportunity)) setFocus({ latlng: [Number(opportunity.latitude), Number(opportunity.longitude)], zoom: 14, nonce: ++focusNonce.current });
         setView('map');
       }}
       initialOpportunityId={volunteerInitial?.id}
@@ -485,8 +618,8 @@ function App() {
           </div>
           </details>
           <div className="list-toolbar"><span>{listCountLabel}</span>{sessionUserId && <button className={`sort-button${showSubmissions ? ' is-active' : ''}`} onClick={() => setShowSubmissions((open) => !open)}><Inbox size={13} /> {showSubmissions ? 'Community feed' : submissionsLabel}</button>}<button className="sort-button" onClick={() => setReports((current) => [...current].sort((first, second) => second.created_at.localeCompare(first.created_at)))}><ArrowDownUp size={13} /> Recent</button></div>
-          <div className="report-list">{loading ? <div className="empty-state"><Search size={22} /><strong>Loading reports…</strong></div> : showSubmissions ? (myReportsError ? <div className="empty-state" role="alert"><Inbox size={22} /><strong>Submission history unavailable</strong><span>{myReportsError}</span><button className="outline-button" disabled={myReportsRetrying} onClick={retryMyReports}>{myReportsRetrying ? 'Trying again…' : 'Try again'}</button></div> : myReports.length ? myReports.map((report) => <ReportRow key={report.id} report={report} theme={theme} decision={decisionText(report)} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Inbox size={22} /><strong>No submissions yet</strong><span>Reports you send appear here with their review status.</span></div>) : filtered.length ? filtered.map((report) => <ReportRow key={report.id} report={report} theme={theme} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Search size={22} /><strong>No reports yet</strong><span>Approved community reports will appear here.</span></div>}</div>
-          <div className="panel-footer"><span><Users size={15} /> Built with community input</span><button className="footer-link" onClick={() => setNotice('Community reports are visible only after authorized review. Verification is not government endorsement.')}><ShieldCheck size={14} /> Review standards</button></div>
+          <div className="report-list">{loading ? <div className="empty-state"><Search size={22} /><strong>Loading reports…</strong></div> : showSubmissions ? (myReportsError ? <div className="empty-state" role="alert"><Inbox size={22} /><strong>Submission history unavailable</strong><span>{myReportsError}</span><button className="outline-button" disabled={myReportsRetrying} onClick={retryMyReports}>{myReportsRetrying ? 'Trying again…' : 'Try again'}</button></div> : myReports.length ? myReports.slice(0,listLimit).map((report) => <ReportRow key={report.id} report={report} theme={theme} decision={decisionText(report)} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Inbox size={22} /><strong>No submissions yet</strong><span>Reports you send appear here with their review status.</span></div>) : filtered.length ? filtered.slice(0,listLimit).map((report) => <ReportRow key={report.id} report={report} theme={theme} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Search size={22} /><strong>No reports yet</strong><span>Approved community reports will appear here.</span></div>}</div>
+          {(showSubmissions ? myReports.length : filtered.length) > listLimit && <button className="outline-button" onClick={() => setListLimit(value => value+30)}>Show more concerns</button>}{!showSubmissions && reports.length >= 500 && !olderExhausted && <button className="outline-button" disabled={olderBusy} onClick={loadOlderReports}>{olderBusy ? "Loading older reports?" : "Load older reports"}</button>}<div className="panel-footer"><span><Users size={15} /> Built with community input</span><button className="footer-link" onClick={() => setNotice('Community reports are visible only after authorized review. Verification is not government endorsement.')}><ShieldCheck size={14} /> Review standards</button></div>
         </aside>
         <ProvinceMap
           reports={filtered}
@@ -513,6 +646,7 @@ function App() {
           }}
           detail={selected ? <ReportDetailCard
             report={selected}
+            canViewEvidence={isStaff || myReports.some((report) => report.id === selected.id)}
             categoryName={categoryNames[selected.category_slug] ?? selected.category_slug}
             markerColor={categoryVisual(selected.category_slug, theme).color}
             statusColorValue={statusColor(selected.status, theme)}
@@ -521,6 +655,7 @@ function App() {
           /> : null}
         />
       </section>
+      <ReportTrends reports={categoryBase} />
       <ProvincePulse
         reports={categoryBase}
         theme={theme}
@@ -545,16 +680,40 @@ function App() {
     {welcomeMessage && <div className="welcome-toast" role="status"><span><Check size={13} /></span><div><strong>{welcomeMessage}</strong><small>Ready to make a difference in Eastern Samar?</small></div></div>}
     {formOpen && authMode && isSupabaseConfigured && <AuthDialog supabase={supabase} initialMode={authMode} onNotice={setNotice} onAuthenticated={welcomeAfterLogin} onAccountCreated={(user, needsConfirmation) => { if (user?.id) setWelcomeTour({ userId: user.id, name: user.user_metadata?.display_name || '', needsConfirmation }); }} onClose={() => { setFormOpen(false); setAuthMode(null); }} />}
     {welcomeTour && <Suspense fallback={null}><SmartEsteWelcome name={welcomeTour.name} needsConfirmation={welcomeTour.needsConfirmation} exploring={Boolean(welcomeTour.exploring)} onExplore={exploreWelcomeFeature} onResume={resumeWelcomeTour} onFinish={closeWelcomeTour} /></Suspense>}
-    {(formOpen || picking) && !authMode && <ReportDialog categories={categories} onClose={() => { setFormOpen(false); setPicking(false); }} onSubmit={submitReport} onPickLocation={startPicking} location={location} hidden={picking} />}
+    {(formOpen || picking) && !authMode && <ReportDialog userId={sessionUserId} categories={categories} onClose={() => { setFormOpen(false); setPicking(false); }} onSubmit={submitReport} onPickLocation={startPicking} location={location} hidden={picking} onDraftSaved={() => { setOfflineDraftCount(getOfflineDrafts().length); setNotice('Draft saved on this device for your account. Photos are not saved offline. Choose Sync Now when connected.'); }} />}
     <footer className="site-footer"><span><HeartPulse size={14} /> A community-powered view of Eastern Samar</span><button className="smart-tour-replay" type="button" onClick={() => setWelcomeTour({ userId: sessionUserId, name: profile?.display_name || '', needsConfirmation: false })}><Compass size={15} /> SMART ESTE tour</button><span>{isSupabaseConfigured ? 'Shared reports · moderation required' : 'Demo mode · map ready for live data'}</span></footer>
     <nav className="mobile-bottom-nav" aria-label="Mobile community navigation">
       <button aria-current={activeNavigation === 'map' ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={20} /><span>Map</span></button>
       <button aria-current={activeNavigation === 'reports' ? 'page' : undefined} onClick={() => navigate('reports')}><Inbox size={20} /><span>Reports</span></button>
       <button onClick={() => navigate('report')}><Plus size={21} /><span>Submit</span></button>
       <button aria-current={view === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={20} /><span>Volunteer</span></button>
+      <button type="button" onClick={() => setHotlinesOpen(true)} className="mobile-hotline-tab" aria-label="Emergency hotlines"><PhoneCall size={20} /><span>Hotlines</span></button>
       <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={20} /><span>Profile</span></button>
       {isStaff && <a href={`${import.meta.env.BASE_URL}operations/`}><Layers3 size={20} /><span>Operations</span></a>}
     </nav>
+    <EmergencyHotlineDrawer
+      isOpen={hotlinesOpen}
+      onClose={() => setHotlinesOpen(false)}
+      defaultMunicipality={area === 'all' ? 'all' : area}
+    />
+    {offlineDraftCount > 0 && (
+      <aside className="offline-sync-toast" role="status" aria-label="Offline report drafts">
+        <WifiOff size={18} style={{ color: '#f59e0b', flexShrink: 0 }} />
+        <div className="offline-sync-copy">
+          <strong>{offlineDraftCount} Offline {offlineDraftCount === 1 ? 'Report' : 'Reports'} Saved</strong>
+          <span>Stored on device. Ready to upload to SMART ESTE.</span>
+        </div>
+        <button
+          type="button"
+          className="sync-now-btn"
+          onClick={handleSyncOfflineDrafts}
+          disabled={syncingDrafts}
+        >
+          {syncingDrafts ? 'Uploading…' : 'Sync Now'}
+        </button>
+        <button type="button" className="outline-button" disabled={syncingDrafts} onClick={() => {try {getOfflineDrafts(sessionUserId || null).forEach(draft=>removeOfflineDraft(draft.id));setNotice('Your offline drafts were deleted from this device.');} catch(error) {setNotice(error.message);}}}>Delete drafts</button>
+      </aside>
+    )}
   </main>;
 }
 

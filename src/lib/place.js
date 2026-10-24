@@ -23,7 +23,8 @@ export const PROVINCE = {
 };
 
 // Keyless raster styles keep the map available without vendor credentials.
-const mapAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Boundaries: <a href="https://www.geoboundaries.org/">geoBoundaries</a> (NAMRIA, PSA, OCHA Philippines) · CC BY 3.0 IGO';
+// Dark mode appearance is styled via CSS filters in styles.css ([data-theme='dark'] .leaflet-tile-pane).
+const mapAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &middot; Boundaries: <a href="https://www.geoboundaries.org/">geoBoundaries</a> (NAMRIA, PSA, OCHA Philippines) &middot; CC BY 3.0 IGO';
 
 export const BASEMAPS = {
   light: {

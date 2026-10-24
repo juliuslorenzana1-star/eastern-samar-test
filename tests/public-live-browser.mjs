@@ -1,0 +1,47 @@
+// Read-only browser integration against configured Supabase. Never signs in or writes.
+import { chromium } from 'playwright-core';
+import assert from 'node:assert/strict';
+import { mkdir,writeFile } from 'node:fs/promises';
+const browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'msedge',headless:true});
+const results={consoleErrors:[],api:[],blocked:[]};
+try {
+  const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
+  page.on('pageerror',error=>results.consoleErrors.push(error.message));
+  page.on('response',response=>{
+    const url=new URL(response.url());
+    if(url.hostname.endsWith('.supabase.co')) results.api.push({path:url.pathname,status:response.status()});
+  });
+  await page.route('https://*.supabase.co/**',route=>{
+    const request=route.request(),path=new URL(request.url()).pathname;
+    const allowedRead=['platform_statistics','report_progress','get_volunteer_signup_counts','get_volunteer_community_totals','get_public_leaderboard'];
+    if(!['GET','HEAD','OPTIONS'].includes(request.method()) && !allowedRead.some(name=>path.endsWith('/rpc/'+name)))throw new Error('Live test refused a write request.');
+    return route.continue();
+  });
+  await page.goto(process.env.UI_TEST_URL || 'http://localhost:5178/',{waitUntil:'domcontentloaded'});
+  await page.locator('.leaflet-map').waitFor();
+  await page.getByRole('heading',{name:'Your Community. Your Voice. Our Action.',exact:true}).waitFor();
+  await page.waitForFunction(()=>document.querySelectorAll('.report-card').length>0 || document.querySelector('.report-list .empty-state strong')?.textContent==='No reports yet');
+  assert.ok(results.api.some(item=>item.path.endsWith('/reports') && item.status===200));
+  assert.ok(results.api.some(item=>item.path.endsWith('/report_categories') && item.status===200));
+  await page.locator('.report-filter-disclosure > summary').click();
+  await page.getByRole('combobox',{name:'Filter by municipality',exact:true}).selectOption('Guiuan');
+  assert.match(await page.locator('.map-location-copy').innerText(),/Guiuan/);
+  await page.getByRole('radio',{name:'Dark',exact:true}).click();
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('.leaflet-map').waitFor();
+  assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+  await page.getByRole('button',{name:'Eastern Samar emergency hotlines',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Eastern Samar Hotlines',exact:true});
+  await dialog.waitFor();
+  assert.equal(await dialog.locator('a[href^="tel:"]').count(),1,'Only sourced numbers may be dialled');
+  assert.equal(await dialog.locator('a[href="tel:911"]').count(),1);
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await mkdir('test-results.local',{recursive:true});
+  await page.screenshot({path:'test-results.local/live-public-desktop.png',fullPage:true});
+  assert.deepEqual(results.consoleErrors,[]);
+  results.blocked=results.api.filter(item=>item.status>=400);
+  await writeFile('test-results.local/live-public-results.json',JSON.stringify(results,null,2));
+  console.log('PASS real Supabase public reads, municipality selection, theme persistence and sourced hotline dialog.');
+  console.log('Database setup gaps:',JSON.stringify(results.blocked));
+}finally{await browser.close();}

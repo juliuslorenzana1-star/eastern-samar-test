@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { validateReport } from './report-validation.js';
 
 const reportColumns = [
   'id',
@@ -74,7 +75,7 @@ export async function validateEvidenceFile(file) {
   return { extension };
 }
 
-export async function fetchPublicReports() {
+export async function fetchPublicReports({ offset = 0 } = {}) {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('reports')
@@ -82,7 +83,7 @@ export async function fetchPublicReports() {
     .eq('is_public', true)
     .in('status', publicReportStatuses)
     .order('created_at', { ascending: false })
-    .limit(500);
+    .range(offset, offset + 499);
   if (error) throw error;
   // Defensive second pass: even if a policy is ever loosened, a report that is not
   // approved cannot be rendered on the public map or list.
@@ -223,6 +224,7 @@ export async function fetchAIReview(reportId) {
 
 export async function createReport(values, userId) {
   if (!supabase || !userId) throw new Error('Sign in before submitting a report.');
+  values = validateReport(values);
   const evidenceType = values.evidence
     ? await validateEvidenceFile(values.evidence)
     : null;
@@ -272,7 +274,7 @@ export async function createReport(values, userId) {
       });
       if (metadataError) throw metadataError;
     } catch {
-      warnings.push('Report saved, but the evidence upload failed. You can retry from your account.');
+      warnings.push('Report saved, but the evidence upload failed. Contact a moderator to arrange supporting evidence.');
     }
   }
 
@@ -317,10 +319,18 @@ export async function moderateReport({ reportId, status, priority, note, residen
   // PGRST202 = the five-argument overload is not in this project yet, which means
   // the review-decision migration has not been applied. Retry on the older shape so
   // the review queue keeps working; the resident-facing reason is simply not stored.
-  if (error && error.code === 'PGRST202') {
+  if (error && error.code === 'PGRST202' && !['rejected', 'needs_more_information'].includes(status) && !residentNote?.trim()) {
     ({ error } = await supabase.rpc('moderate_report', args));
   }
   if (error) throw error;
+}
+
+export async function fetchReportProgress(reportId) {
+  if (!supabase) return [];
+  // This RPC returns public status changes only, never actor IDs or private notes.
+  const { data, error } = await supabase.rpc('report_progress', { target_report_id: reportId });
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function setProfileRole(userId, role) {

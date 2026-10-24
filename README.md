@@ -48,3 +48,8 @@ Apply `supabase/migrations/202610010002_report_linked_volunteer_opportunities.sq
 - AI screening requires deployment and server-side provider secrets; without them it is marked unavailable and human moderation continues.
 - Volunteer listings/signups use RLS-protected tables. Only staff can publish opportunities, only approved public reports can be linked, and each resident can manage only their own signup. Notifications delivery and project management UI remain future work.
 - GitHub Pages hosts the frontend; Supabase provides the separate Auth, database, and storage services.
+# Platform completion and verification
+
+See [implementation status](IMPLEMENTATION_PROGRESS.md), [deployment gates and exact rollout steps](DEPLOYMENT_READINESS.md), and the [presentation guide](PRESENTATION_DEMO.md). Production database repair and authenticated staging acceptance remain required; local tests are not a claim of live integration.
+
+Run `npm run lint`, `npm test`, `npm run test:database`, `npm run build`, then `npm run test:browser`. The browser runner serves the compiled assets and uses isolated fixtures. `npm run test:public:live` performs read-only checks against the configured backend while a dev server runs on port 5178. Use `npm.cmd` on Windows if PowerShell blocks npm.ps1.

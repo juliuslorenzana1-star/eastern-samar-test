@@ -18,7 +18,7 @@ async function loadReports(responses) {
       },
     }) }) }),
   };
-  const injected = source.replace(
+  const injected = source.replace("'./report-validation.js'", JSON.stringify(new URL('../src/lib/report-validation.js', import.meta.url).href)).replace(
     "import { supabase } from './supabase.js';",
     `const supabase = globalThis[${JSON.stringify(transportKey)}];`,
   );

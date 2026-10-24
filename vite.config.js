@@ -2,11 +2,12 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { assertSafeClientEnv } from './scripts/client-env.mjs'
 
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
-  plugins: [react(), {
+  plugins: [react(), { name: 'validate-client-credentials', configResolved(config) { assertSafeClientEnv(config.env) } }, {
     name: 'operations-static-entry',
     apply: 'build',
     async writeBundle(output) {

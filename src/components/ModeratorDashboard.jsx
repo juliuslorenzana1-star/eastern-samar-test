@@ -1,4 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import useDialogFocus from '../lib/useDialogFocus.js';
+import AuditHistory from './AuditHistory.jsx';
 import { AlertTriangle, Check, Clock3, FileText, MapPin, Search, ShieldCheck, X } from 'lucide-react';
 import { formatStatus, publicReportStatuses, reportPriorities, reportStatuses } from '../lib/reports.js';
 import { MUNICIPALITIES } from '../lib/place.js';
@@ -94,6 +96,9 @@ export default function ModeratorDashboard({ reports, initialReportId = null, ca
   const [volunteerOverview, setVolunteerOverview] = useState({ opportunities: [], signupCounts: {} });
   const [volunteerOverviewError, setVolunteerOverviewError] = useState(false);
   const [currentTime] = useState(() => Date.now());
+
+  const reviewDialogRef = useDialogFocus({ active: Boolean(selected), busy, onClose: () => setSelected(null) });
+  const volunteerManagerRef = useDialogFocus({ active: Boolean(managedOpportunity), busy: managementBusy, onClose: () => setManagedOpportunity(null) });
 
   useEffect(() => {
     let active = true;
@@ -429,8 +434,8 @@ export default function ModeratorDashboard({ reports, initialReportId = null, ca
       <div><span className="eyebrow">ADMIN ONLY</span><h2 id="role-management-title">Account roles</h2><p>Only administrators can grant moderator or administrator access.</p></div>
       <div className="role-list">{profiles.map((profile) => <label className="role-row" key={profile.id}><span>{profile.display_name || profile.id.slice(0, 8)}<small>{profile.id}</small></span><select aria-label={`Role for ${profile.display_name || profile.id}`} value={profile.role} onChange={(event) => onChangeRole(profile.id, event.target.value)}><option value="resident">Resident</option><option value="moderator">Moderator</option><option value="admin">Administrator</option></select></label>)}</div>
     </section>}
-    {selected && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}>
-      <section className="report-modal review-modal" role="dialog" aria-modal="true" aria-labelledby="review-detail-title">
+    {selected && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && setSelected(null)}>
+      <section ref={reviewDialogRef} tabIndex={-1} className="report-modal review-modal" role="dialog" aria-modal="true" aria-labelledby="review-detail-title" aria-busy={busy}>
         <div className="modal-head"><div><span className="eyebrow">REPORT REVIEW</span><h2 id="review-detail-title">{selected.title}</h2></div><button className="icon-button" onClick={() => setSelected(null)} aria-label="Close report review"><X size={19} /></button></div>
         <div className="review-detail-meta"><span>{categoryNames[selected.category_slug] ?? selected.category_slug}</span><span><MapPin size={13} />{selected.barangay ? `${selected.barangay}, ` : ''}{selected.municipality}</span><span>{new Date(selected.created_at).toLocaleString('en-PH')}</span></div>
         <p className="review-description">{selected.description}</p>
@@ -452,8 +457,8 @@ export default function ModeratorDashboard({ reports, initialReportId = null, ca
         </form>
       </section>
     </div>}
-    {managedOpportunity && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setManagedOpportunity(null)}>
-      <section className="report-modal volunteer-manager-modal" role="dialog" aria-modal="true" aria-labelledby="volunteer-manager-title">
+    {managedOpportunity && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !managementBusy && setManagedOpportunity(null)}>
+      <section ref={volunteerManagerRef} tabIndex={-1} className="report-modal volunteer-manager-modal" role="dialog" aria-modal="true" aria-labelledby="volunteer-manager-title" aria-busy={managementBusy}>
         <div className="modal-head"><div><span className="eyebrow">AUTHORIZED COORDINATION</span><h2 id="volunteer-manager-title">{managedOpportunity.title}</h2></div><button type="button" className="icon-button" onClick={() => setManagedOpportunity(null)} aria-label="Close volunteer management"><X size={19} /></button></div>
         <div className="volunteer-manager-status-actions"><span>Activity: <strong>{formatStatus(managedOpportunity.status)}</strong> · Registration: <strong>{managedOpportunity.registration_open === false ? 'Closed' : 'Open'}</strong></span>{!['completed', 'cancelled'].includes(managedOpportunity.status) && <><button type="button" className="outline-button" disabled={managementBusy} onClick={() => changeVolunteerRegistrationOpen(managedOpportunity, managedOpportunity.registration_open === false)}> {managedOpportunity.registration_open === false ? 'Open registration' : 'Close registration'}</button><button type="button" className="outline-button" disabled={managementBusy} onClick={() => changeVolunteerActivityStatus(managedOpportunity, 'completed')}>Mark activity completed</button><button type="button" className="outline-button" disabled={managementBusy} onClick={() => changeVolunteerActivityStatus(managedOpportunity, 'cancelled')}>Cancel activity</button></>}</div>
         {managementMessage && <p className={managementMessage.endsWith('saved.') ? 'form-success' : 'form-error'} role="status">{managementMessage}</p>}
@@ -473,5 +478,7 @@ export default function ModeratorDashboard({ reports, initialReportId = null, ca
         <div className="modal-foot"><span>Only staff can change attendance or recorded hours.</span><button type="button" className="outline-button" onClick={() => { const opportunity = managedOpportunity; setManagedOpportunity(null); editVolunteerOpportunity(opportunity); }}>Edit activity</button><button type="button" className="outline-button" onClick={() => setManagedOpportunity(null)}>Done</button></div>
       </section>
     </div>}
+    <details className="civic-guide"><summary>Volunteer participation by activity</summary><p>Registration counts for the loaded activities. Cancelled and no-show registrations are excluded.</p>{volunteerOverviewError ? <p>Participation data could not be loaded.</p> : volunteerOverview.opportunities.length ? volunteerOverview.opportunities.map(activity=><p key={activity.id}>{activity.title} <meter min="0" max={Math.max(1,...Object.values(volunteerOverview.signupCounts))} value={volunteerOverview.signupCounts[activity.id] || 0} aria-label={`${activity.title} registrations`} /> {volunteerOverview.signupCounts[activity.id] || 0}</p>) : <p>No activities loaded.</p>}</details>
+    <AuditHistory />
   </section>;
 }

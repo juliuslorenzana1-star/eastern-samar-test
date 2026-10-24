@@ -51,7 +51,7 @@ async function pageFor(width, height, theme, staff = false, empty = false) {
   });
   return { page, errors };
 }
-const noOverflow = async (page) => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Page must not scroll horizontally');
+const noOverflow = async (page) => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1 && innerWidth <= (visualViewport?.width ?? innerWidth) + 1), 'Page must not scroll horizontally or expand the mobile viewport');
 try {
   for (const [width, height, theme] of [[1440, 1000, 'light'], [1440, 1000, 'dark'], [390, 844, 'dark'], [320, 640, 'light'], [768, 1024, 'light'], [844, 390, 'dark']]) {
     const { page, errors } = await pageFor(width, height, theme);

@@ -103,10 +103,11 @@ export default function VolunteerBoard({
   const [registrations, setRegistrations] = useState([]);
   const [communityTotals, setCommunityTotals] = useState({ volunteersJoined: 0, communityHours: 0 });
   const [leaderboard, setLeaderboard] = useState([]);
-  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(configured);
   const [leaderboardError, setLeaderboardError] = useState('');
   const [publicAlias, setPublicAlias] = useState('');
-  const [privacyReady, setPrivacyReady] = useState(false);
+  const [privacyOwner,setPrivacyOwner] = useState(null);
+  const privacyReady = Boolean(userId && privacyOwner===userId);
   const [privacyBusy, setPrivacyBusy] = useState(false);
   const [profileVisibility, setProfileVisibility] = useState(false);
   const [loading, setLoading] = useState(configured);
@@ -117,7 +118,8 @@ export default function VolunteerBoard({
   const [busyId, setBusyId] = useState(null);
   const [view, setView] = useState('opportunities');
   const [selected, setSelected] = useState(null);
-  const [dialog, setDialog] = useState('');
+  const [dialogState, setDialog] = useState('');
+  const dialog = dialogState === 'signin' && userId && selected ? 'confirm' : dialogState;
   const [success, setSuccess] = useState(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
@@ -126,6 +128,7 @@ export default function VolunteerBoard({
   const [dateFilter, setDateFilter] = useState('upcoming');
   const [skill, setSkill] = useState('all');
   const [now] = useState(() => Date.now());
+  const [hasConsented, setHasConsented] = useState(false);
   const initialOpened = useRef(null);
   const activityDialogRef = useDialogFocus({ active: Boolean(dialog && selected), busy: Boolean(busyId), onClose: () => setDialog('') });
 
@@ -155,7 +158,6 @@ export default function VolunteerBoard({
 
   useEffect(() => {
     if (!configured) {
-      setLoading(false);
       return undefined;
     }
     let active = true;
@@ -184,8 +186,6 @@ export default function VolunteerBoard({
   useEffect(() => {
     if (!configured) return undefined;
     let active = true;
-    setLeaderboardLoading(true);
-    setLeaderboardError('');
     fetchVolunteerLeaderboard()
       .then((nextEntries) => { if (active) setLeaderboard(nextEntries); })
       .catch(() => { if (active) { setLeaderboard([]); setLeaderboardError('Community recognition is unavailable. Please try again later.'); } })
@@ -195,14 +195,11 @@ export default function VolunteerBoard({
 
   useEffect(() => {
     if (!userId) {
-      setProfileVisibility(false);
       return undefined;
     }
     let active = true;
-    setPrivacyReady(false);
-    setPublicAlias('');
     fetchVolunteerPrivacy(userId).then((settings) => {
-      if (active) { setPublicAlias(settings.public_alias || ''); setPrivacyReady(true); }
+      if (active) { setPublicAlias(settings.public_alias || ''); setPrivacyOwner(userId); }
     }).catch((privacyError) => { if (active) setMessage(privacyError.message); });
     fetchProfile(userId)
       .then((nextProfile) => { if (active) setProfileVisibility(Boolean(nextProfile?.show_on_leaderboard)); })
@@ -210,9 +207,6 @@ export default function VolunteerBoard({
     return () => { active = false; };
   }, [userId]);
 
-  useEffect(() => {
-    if (userId && dialog === 'signin' && selected) setDialog('confirm');
-  }, [dialog, selected, userId]);
 
   const openInitialOpportunity = useEffectEvent((match) => {
     setSelected(match);
@@ -226,7 +220,10 @@ export default function VolunteerBoard({
   useEffect(() => {
     if (!initialOpportunityId || !opportunities.length || initialOpened.current === initialOpportunityId) return;
     const match = opportunities.find((opportunity) => opportunity.id === initialOpportunityId);
-    if (match) openInitialOpportunity(match);
+    if (match) {
+      const timer=window.setTimeout(()=>openInitialOpportunity(match),0);
+      return ()=>window.clearTimeout(timer);
+    }
   }, [initialOpportunityId, opportunities]);
 
   const joinedIds = useMemo(() => new Set(registrations
@@ -292,12 +289,14 @@ export default function VolunteerBoard({
   function openDetails(opportunity) {
     setSelected(opportunity);
     setMessage('');
+    setHasConsented(false);
     setDialog('details');
   }
 
   function beginJoin(opportunity) {
     setSelected(opportunity);
     setMessage('');
+    setHasConsented(false);
     if (!userId) setDialog('signin');
     else if (joinedIds.has(opportunity.id)) setMessage('You already joined this activity. Find it under My Activities.');
     else if (opportunity.status === 'cancelled') setMessage('This activity was cancelled and is no longer accepting volunteers.');
@@ -520,7 +519,7 @@ export default function VolunteerBoard({
           {message && <p className="volunteer-message" role="status">{message}</p>}
           <div className="volunteer-modal-actions"><button type="button" className="outline-button" onClick={() => setDialog('')}>Close</button><button type="button" className="primary-button" disabled={selected.registration_open === false || ['full', 'cancelled', 'completed', 'ongoing'].includes(selected.status)} onClick={() => beginJoin(selected)}>Join Activity</button></div>
         </div>}
-        {dialog === 'confirm' && <div className="volunteer-confirm-content"><p>Activity: <strong>{selected.title}</strong></p><p>Date: <strong>{formatSchedule(selected)}</strong></p><p>Location: <strong>{opportunityPlace(selected)}</strong></p><label><input type="checkbox" onChange={(event) => setMessage(event.target.checked ? 'consent' : '')} /> By joining, I understand that I am volunteering for this community activity.</label>{message && message !== 'consent' && <p className="volunteer-message is-error" role="alert">{message}</p>}<div className="volunteer-modal-actions"><button type="button" className="outline-button" onClick={() => { setDialog('details'); setMessage(''); }}>Cancel</button><button type="button" className="primary-button" disabled={busyId === selected.id || message !== 'consent'} onClick={confirmJoin}>{busyId === selected.id ? 'Joining…' : 'Confirm & Join'}</button></div></div>}
+        {dialog === 'confirm' && <div className="volunteer-confirm-content"><p>Activity: <strong>{selected.title}</strong></p><p>Date: <strong>{formatSchedule(selected)}</strong></p><p>Location: <strong>{opportunityPlace(selected)}</strong></p><label><input type="checkbox" checked={hasConsented} onChange={(event) => setHasConsented(event.target.checked)} /> By joining, I understand that I am volunteering for this community activity.</label>{message && <p className="volunteer-message is-error" role="alert">{message}</p>}<div className="volunteer-modal-actions"><button type="button" className="outline-button" onClick={() => { setDialog('details'); setMessage(''); setHasConsented(false); }}>Cancel</button><button type="button" className="primary-button" disabled={busyId === selected.id || !hasConsented} onClick={confirmJoin}>{busyId === selected.id ? 'Joining…' : 'Confirm & Join'}</button></div></div>}
         {dialog === 'signin' && <div className="volunteer-confirm-content"><p>You need an account to join this activity.</p><div className="volunteer-confirm-summary"><strong>{selected.title}</strong><span>{formatSchedule(selected)}</span><span>{opportunityPlace(selected)}</span></div><div className="volunteer-modal-actions"><button type="button" className="outline-button" onClick={() => setDialog('details')}>Back to details</button><button type="button" className="outline-button" onClick={() => onSignIn('sign-up')}>Create account</button><button type="button" className="primary-button" onClick={() => onSignIn('sign-in')}>Log in</button></div></div>}
         {dialog === 'success' && <div className="volunteer-success-content"><span className="volunteer-success-mark"><Check size={24} /></span><p>You have successfully joined this volunteer activity.</p>{message && <p className="volunteer-message" role="status">{message}</p>}<dl><div><dt>Activity</dt><dd>{success?.title}</dd></div><div><dt>Date</dt><dd>{success ? formatDate(success.starts_at) : ''}</dd></div><div><dt>Time</dt><dd>{success ? formatSchedule(success).split(' · ')[1] || 'To be announced' : ''}</dd></div><div><dt>Location</dt><dd>{opportunityPlace(success ?? {})}</dd></div><div><dt>Organizer</dt><dd>{success?.organizer_name || 'Community organizer'}</dd></div></dl><div className="volunteer-modal-actions"><button type="button" className="outline-button" onClick={() => { setDialog(''); setView('opportunities'); }}>Back to Opportunities</button><button type="button" className="primary-button" onClick={() => { setDialog(''); setView('my-activities'); reloadRegistrations(); }}>View My Volunteer Activities</button></div></div>}
       </section>

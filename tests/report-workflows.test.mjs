@@ -27,7 +27,8 @@ globalThis.reportTestTransport = {
     } };
   },
 };
-const injected = source.replace("import { supabase } from './supabase.js';", 'const supabase = globalThis.reportTestTransport;');
+const injected = source.replace("import { supabase } from './supabase.js';", 'const supabase = globalThis.reportTestTransport;')
+  .replace("'./report-validation.js'", JSON.stringify(new URL('../src/lib/report-validation.js', import.meta.url).href));
 const reports = await import('data:text/javascript;base64,' + Buffer.from(injected).toString('base64'));
 
 test('missing ownership RPC and denied owner lookup fail closed', async () => {
