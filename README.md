@@ -11,6 +11,14 @@ npm run dev
 
 Open the local URL printed by Vite. OpenStreetMap tiles require an internet connection.
 
+## Resident interface
+
+SMART ESTE uses a navy and teal map-centered layout, with a single desktop navigation bar and a five-destination mobile bar. Home, Reports, Volunteer, Community, About, Profile, and My Reports support browser history through URL hashes. Expanded maps include search and category filters. Nearby reports require location permission and use a 10 km radius around approximate public report coordinates; the visitor's location is not stored.
+
+Reporting follows Details → Location → Review and shows a saved record's reference only after the existing Supabase creation flow confirms it. Private photos remain private. Profile contains appearance preferences, personal reports and activities, emergency contacts, and staff tools when authorized. Dark is the initial appearance; Light and System remain available. Existing signup tours and public recognition remain supported, while the timed entry splash has been removed.
+
+Run `npm run test:redesign:browser` against the dev server for responsive layouts, history, nearby permission handling, report failures and confirmation, volunteer registration, and role-based navigation. `npm run test:browser` runs this alongside the existing interface, operations, onboarding, and recognition regressions against the production build. `node scripts/review-redesign.mjs` captures the actual public interface at phone, tablet, and desktop sizes using read-only requests. See `REDESIGN_VERIFICATION.md` for implementation details and verification limits.
+
 ## SMART ESTE welcome and tutorial
 
 The community interface centers the street map, with report filters and expanded community insights available on demand. Operations uses the same coastal palette, three primary indicators, a collapsible activity feed, and dedicated mobile navigation. Staff access remains protected by the existing account roles and database policies. Run `npm run test:interface:browser` against the local dev server to check responsive navigation, report filters/details, expandable statistics, operations navigation, and signed-out staff protection using intercepted fixtures only.

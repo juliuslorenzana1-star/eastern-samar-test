@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import 'leaflet/dist/leaflet.css';
 import './styles.css';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
-import CinematicEntry from './components/CinematicEntry.jsx';
 import './atlas.css';
 import './mobile.css';
 import './community-refresh.css';
@@ -16,10 +15,11 @@ createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
     <React.Suspense fallback={<main className="view-loading" role="status">Loading community platform…</main>}>
-    {isOperationsPath(window.location.pathname, import.meta.env.BASE_URL) ? <OperationsCommand /> : <CinematicEntry><App /></CinematicEntry>}
+    {isOperationsPath(window.location.pathname, import.meta.env.BASE_URL) ? <OperationsCommand /> : <App />}
     </React.Suspense>
     </ErrorBoundary>
   </React.StrictMode>,
 )
 
 import './mobile-recognition.css';
+import './redesign.css';

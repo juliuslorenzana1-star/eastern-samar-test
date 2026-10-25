@@ -11,9 +11,21 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
   const [preview, setPreview] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState(1);
+  const stepHeading = useRef(null);
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
   const dialogRef = useDialogFocus({ active: !hidden, busy, onClose });
   const submitLock = useRef(false);
+
+  useEffect(() => { stepHeading.current?.focus(); }, [step]);
+
+  function nextStep(event) {
+    event?.preventDefault();
+    const fields = dialogRef.current?.querySelectorAll('fieldset:not([hidden]) input, fieldset:not([hidden]) select, fieldset:not([hidden]) textarea');
+    for (const field of fields || []) if (!field.reportValidity()) return;
+    setError('');
+    setStep(current => Math.min(3, current + 1));
+  }
 
   useEffect(() => () => {
     if (preview) URL.revokeObjectURL(preview);
@@ -74,6 +86,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
 
   async function submit(event) {
     event.preventDefault();
+    if (step !== 3) { nextStep(); return; }
     if (submitLock.current) return;
     submitLock.current = true;
     setError('');
@@ -101,7 +114,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
     <div className={`modal-backdrop${hidden ? ' is-hidden' : ''}`} onMouseDown={(event) => !busy && event.target === event.currentTarget && onClose()}>
       <section ref={dialogRef} tabIndex={-1} className="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-form-title" aria-busy={busy}>
         <div className="modal-head">
-          <div><span className="eyebrow">COMMUNITY REPORT</span><h2 id="report-form-title">Add a concern</h2></div>
+          <div><span className="eyebrow">COMMUNITY REPORT</span><h2 id="report-form-title">Report a Concern</h2></div>
           <button className="icon-button" disabled={busy} onClick={onClose} aria-label="Close report form"><X size={19} /></button>
         </div>
 
@@ -112,9 +125,11 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
           </div>
         )}
 
-        <p className="modal-intro">Reports begin private and pending review. Don’t include names or details that could identify vulnerable people. When configured, title and description may be screened by an external service; its flags are advisory and a human moderator decides publication.</p>
+        <ol className="report-steps" aria-label="Report progress">{['Details', 'Location', 'Review'].map((label, index) => <li key={label} aria-current={step === index + 1 ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}</ol>
+        <h3 className="step-heading" ref={stepHeading} tabIndex={-1}>{['What needs attention?', 'Where is the concern?', 'Review your report'][step - 1]}</h3>
+        <p className="modal-intro">Your report stays private until reviewed. Avoid names or details that identify vulnerable people. Automated screening, when configured, supports human review.</p>
         <form onSubmit={submit}>
-          <fieldset className="report-form-section" disabled={busy}>
+          <fieldset className="report-form-section" disabled={busy || step !== 1} hidden={step !== 1}>
           <legend><span>01</span> What needs attention?</legend>
           <label className="field-label">Concern title
             <input name="title" maxLength="120" minLength="6" required value={form.title} onChange={update} placeholder="What needs attention?" />
@@ -125,19 +140,27 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
                 {categories.map((category) => <option value={category.slug} key={category.slug}>{category.name}</option>)}
               </select>
             </label>
+          </div>
+          <label className="field-label">Describe the concern
+            <textarea name="description" rows="4" maxLength="4000" minLength="12" required value={form.description} onChange={update} placeholder="What happened, and what help is needed?" />
+          </label>
+          <label className="field-label photo-field">Supporting photo <span className="optional-label">Optional, private</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseEvidence} />
+            <span className="field-hint">JPEG, PNG, or WebP up to 5 MB. Photos remain private to you and authorized staff.</span>
+          </label>
+          {preview && <img className="evidence-preview" src={preview} alt="Preview of selected evidence" />}
+          </fieldset>
+          <fieldset className="report-form-section" disabled={busy || step !== 2} hidden={step !== 2}>
+          <legend><span>02</span> Choose a location</legend>
             <label className="field-label">Municipality / city
               <select name="municipality" required value={form.municipality} onChange={update}>
                 <option value="">Choose an area</option>
                 {municipalities.map((place) => <option key={place}>{place}</option>)}
               </select>
             </label>
-          </div>
           <label className="field-label">Barangay <span className="optional-label">Optional</span>
             <input name="barangay" maxLength="100" value={form.barangay} onChange={update} placeholder="Barangay name" />
           </label>
-          </fieldset>
-          <fieldset className="report-form-section" disabled={busy}>
-          <legend><span>02</span> Add context and a location</legend>
           <div className="form-row">
             <label className="field-label">Incident date and time <span className="optional-label">Optional</span>
               <input name="incidentAt" type="datetime-local" value={form.incidentAt} onChange={update} />
@@ -159,19 +182,17 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
             <span className="location-select-copy"><strong>{location ? 'Map point selected' : 'Add a map point'}</strong><span>{location ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)} (public location will be approximate)` : 'Optional. Choose a point on the map.'}</span></span>
             <button type="button" className="outline-button" onClick={onPickLocation}>{location ? 'Change' : 'Choose point'}</button>
           </div>
-          <label className="field-label">Describe the concern
-            <textarea name="description" rows="4" maxLength="4000" minLength="12" required value={form.description} onChange={update} placeholder="What happened, and what help is needed?" />
-          </label>
-          <label className="field-label photo-field">Supporting photo <span className="optional-label">Optional, private</span>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseEvidence} />
-            <span className="field-hint">JPEG, PNG, or WebP up to 5 MB. Evidence is stored privately for the reporter and moderators.</span>
-          </label>
-          {preview && <img className="evidence-preview" src={preview} alt="Preview of selected evidence" />}
           </fieldset>
+          {step === 3 && <section className="report-review" aria-label="Report review">
+            {preview && <img className="evidence-preview" src={preview} alt="Photo attached to this report" />}
+            <span className="eyebrow">{categories.find(category => category.slug === selectedCategory)?.name}</span><h3>{form.title}</h3><p><MapPin size={16} />{[form.barangay, form.municipality].filter(Boolean).join(', ')}</p><p className="review-description">{form.description}</p>
+            <dl><dt>Urgency</dt><dd>{form.priority}</dd><dt>Map point</dt><dd>{location ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : 'Not supplied'}</dd>{form.incidentAt && <><dt>Incident</dt><dd>{form.incidentAt.replace('T', ' ')}</dd></>}{form.neededBy && <><dt>Needed by</dt><dd>{form.neededBy}</dd></>}</dl><button type="button" className="outline-button" onClick={() => setStep(1)}>Edit details</button><button type="button" className="outline-button" onClick={() => setStep(2)}>Edit location</button>
+          </section>}
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="modal-foot">
             <span><ShieldCheck size={14} /> Private until reviewed</span>
             <div className="modal-foot-actions">
+              {step > 1 && <button className="outline-button" type="button" disabled={busy} onClick={() => setStep(current => current - 1)}>Back</button>}
               {(isOffline || error) && (
                 <button
                   type="button"
@@ -182,9 +203,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
                   <WifiOff size={14} /> Save Draft
                 </button>
               )}
-              <button className="primary-button" type="submit" disabled={busy || !categories.length}>
-                <Plus size={16} /> {busy ? 'Submitting…' : 'Submit report'}
-              </button>
+              {step < 3 ? <button key="next" className="primary-button" type="button" disabled={!categories.length} onClick={nextStep}>Next →</button> : <button key="submit" className="primary-button" type="submit" disabled={busy || !categories.length}><Plus size={16} />{busy ? 'Submitting…' : 'Submit report'}</button>}
             </div>
           </div>
         </form>

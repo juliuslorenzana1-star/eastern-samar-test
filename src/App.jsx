@@ -1,16 +1,20 @@
 import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
-  Activity, ArrowDownUp, ArrowRight, CalendarDays, Check, ChevronDown,
-  CircleHelp, Compass, Filter, HeartPulse, Inbox, Layers3, LogOut, MapPin,
-  Menu, PhoneCall, Plus, Search, ShieldCheck, Users, WifiOff, X,
+  Activity, ArrowRight, CalendarDays, Check, ChevronDown,
+  Compass, Filter, HeartPulse, Inbox, Layers3, MapPin,
+  Plus, Search, ShieldCheck, Users, WifiOff, X,
 } from 'lucide-react';
 import AuthDialog from './components/AuthDialog.jsx';
 import EmergencyHotlineDrawer from './components/EmergencyHotlineDrawer.jsx';
 import ProvincePulse from './components/ProvincePulse.jsx';
 import ReportDialog from './components/ReportDialog.jsx';
 import ReportDetailCard from './components/ReportDetailCard.jsx';
-import ThemeToggle from './components/ThemeToggle.jsx';
 import CivicOverview from './components/CivicOverview.jsx';
+import ResidentProfile from './components/ResidentProfile.jsx';
+import ReportReceipt from './components/ReportReceipt.jsx';
+import ReportDetailsDialog from './components/ReportDetailsDialog.jsx';
+import { distanceKm } from './lib/distance.js';
+import useDialogFocus from './lib/useDialogFocus.js';
 import ReportTrends from './components/ReportTrends.jsx';
 import NetworkStatus from './components/NetworkStatus.jsx';
 import { finishWelcome, needsWelcome } from './lib/onboarding.js';
@@ -101,6 +105,12 @@ function App() {
   const [authMode, setAuthMode] = useState(null);
   const [view, setView] = useState(() => window.location.hash === '#recognition' ? 'recognition' : 'map');
   const [navigationTarget, setNavigationTarget] = useState('map');
+  const [fullscreenMap, setFullscreenMap] = useState(false);
+  const [receipt, setReceipt] = useState(null);
+  const [nearby, setNearby] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const fullscreenRef = useDialogFocus({ active: fullscreenMap, onClose: () => { setFullscreenMap(false); if (picking) { setPicking(false); setFormOpen(true); } } });
   const [loadedAt] = useState(() => Date.now());
   const [themeMode, setThemeMode] = useState(() => readStoredThemeMode());
   const [systemTick, setSystemTick] = useState(0);
@@ -153,6 +163,7 @@ function App() {
     if (activityId && /^[0-9a-f-]{36}$/i.test(activityId)) {
       openedEmailLink.current = hash;
       setVolunteerInitial({ id: activityId, action: false });
+      setNavigationTarget('volunteers');
       setView('volunteers');
     }
     const submissionId = params.get('submission');
@@ -161,7 +172,7 @@ function App() {
     const report = myReports.find(({ id }) => id === submissionId);
     if (!report) return;
     openedEmailLink.current = hash;
-    setView('map'); setShowSubmissions(true); setPanelOpen(true); setSelected(report);
+    setNavigationTarget('submissions'); setView('map'); setShowSubmissions(true); setPanelOpen(true); setSelected(report);
   });
   useEffect(() => {
     const sync = () => handleEmailLink();
@@ -348,11 +359,20 @@ function App() {
     return (area === 'all' || report.municipality === area)
       && (status === 'all' || report.status === status)
       && haystack.includes(query.toLowerCase())
-      && (days === null || Date.parse(report.created_at) >= loadedAt - days * 86400000);
-  }), [area, dateRange, loadedAt, query, reports, status]);
+      && (days === null || Date.parse(report.created_at) >= loadedAt - days * 86400000)
+      && (!nearby || distanceKm(nearby, report) <= 10);
+  }), [area, dateRange, loadedAt, query, reports, status, nearby]);
   const filtered = useMemo(() => category === 'all'
     ? categoryBase
     : categoryBase.filter((report) => report.category_slug === category), [category, categoryBase]);
+  const filteredMyReports = useMemo(() => myReports.filter(report => {
+    const days = dateRange === 'all' ? null : Number(dateRange);
+    return (area === 'all' || report.municipality === area)
+      && (category === 'all' || report.category_slug === category)
+      && (status === 'all' || report.status === status)
+      && `${report.title} ${report.description} ${report.municipality} ${report.barangay || ''}`.toLowerCase().includes(query.toLowerCase())
+      && (days === null || Date.parse(report.created_at) >= loadedAt - days * 86400000);
+  }), [myReports, area, category, status, query, dateRange, loadedAt]);
   const counts = useMemo(() => categoryCounts(categoryBase), [categoryBase]);
   const mappedCount = useMemo(() => filtered.filter(hasCoordinates).length, [filtered]);
   // Place names come from the loaded reports only, so suggestions never promise a
@@ -367,10 +387,9 @@ function App() {
   // Staff counts come from the moderation queue. The public feed only ever holds
   // approved reports, so a review-stage number can never show up in public stats.
   const pending = queue.filter((report) => ['pending_review', 'under_review', 'needs_more_information'].includes(report.status)).length;
-  const statusOptions = isStaff ? reportStatuses : publicReportStatuses;
-  const submissionsLabel = myReports.length ? `My submissions (${myReports.length})` : 'My submissions';
+  const statusOptions = isStaff || showSubmissions ? reportStatuses : publicReportStatuses;
   const listCountLabel = showSubmissions
-    ? `${myReports.length} ${myReports.length === 1 ? 'submission' : 'submissions'}`
+    ? `${filteredMyReports.length} ${filteredMyReports.length === 1 ? 'submission' : 'submissions'}`
     : `${filtered.length} ${filtered.length === 1 ? 'report' : 'reports'}`;
 
   // Refresh all three data sets independently so a staff-queue failure does not
@@ -390,28 +409,36 @@ function App() {
     if (publicResult.status === 'rejected') throw publicResult.reason;
   }
 
-  function clearFilters() { setCategory('all'); setArea('all'); setStatus('all'); setDateRange('all'); setQuery(''); }
+  function clearFilters() { setCategory('all'); setArea('all'); setStatus('all'); setDateRange('all'); setQuery(''); setNearby(null); setLocationError(''); }
+  function findNearby() {
+    if (!navigator.geolocation) { setLocationError('Location is unavailable in this browser. Choose a municipality using the filters instead.'); return; }
+    setLocating(true); setLocationError('');
+    navigator.geolocation.getCurrentPosition(position => {
+      setNearby({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      setShowSubmissions(false); setLocating(false);
+    }, () => { setLocating(false); setLocationError('Location could not be obtained. Allow location access or select a municipality in the filters.'); }, { timeout: 12000, maximumAge: 60000 });
+  }
   // A place is picked from the pulse list or a search suggestion: the map moves
   // to the centroid of the points actually stored for that place, nothing guessed.
   function focusOnPlace(place) {
     if (!place?.focus) return;
     if (place.type !== 'barangay' && place.municipality) setArea(place.municipality);
     setFocus({ latlng: place.focus, zoom: place.type === 'barangay' ? 13 : 11, nonce: ++focusNonce.current });
-    if (window.innerWidth <= 900) setPanelOpen(false);
+    if (window.innerWidth <= 900 && !['reports', 'submissions'].includes(navigationTarget)) setPanelOpen(false);
   }
   function openReport(report) {
     setSelected(report);
     if (hasCoordinates(report)) setFocus({ latlng: [Number(report.latitude), Number(report.longitude)], zoom: 14, nonce: ++focusNonce.current });
-    if (window.innerWidth <= 900) setPanelOpen(false);
+    if (window.innerWidth <= 900 && !['reports', 'submissions'].includes(navigationTarget)) setPanelOpen(false);
   }
   function startReport() {
     if (!isSupabaseConfigured) { setNotice('The shared database is not configured, so reports cannot be accepted yet.'); return; }
     if (!session?.user) { setAuthMode('sign-in'); setFormOpen(true); setNotice('Sign in to submit a report.'); return; }
     setAuthMode(null);
-    setLocation(null); setFormOpen(true); setPanelOpen(false); setView('map');
+    setLocation(null); setFormOpen(true); setPanelOpen(false); setNavigationTarget('map'); setView('map');
   }
-  function startPicking() { setPicking(true); setFormOpen(false); setNotice('Click the map to place the report pin.'); }
-  function pickPoint(point) { setLocation({ lat: point.lat, lng: point.lng }); setPicking(false); setFormOpen(true); setNotice('Location added to the report.'); }
+  function startPicking() { setFullscreenMap(true); setPicking(true); setFormOpen(false); setNotice('Click the map to place the report pin.'); }
+  function pickPoint(point) { setLocation({ lat: point.lat, lng: point.lng }); setPicking(false); setFullscreenMap(false); setFormOpen(true); setNotice('Location added to the report.'); }
 
   async function submitReport(values) {
     const { report, warning } = await createReport(values, session?.user?.id);
@@ -426,6 +453,8 @@ function App() {
     setSelected(null);
     setShowSubmissions(true);
     setPanelOpen(true);
+    setNavigationTarget('submissions');
+    setReceipt(report);
     setNotice((warning || 'Report submitted and saved securely. Track it under My submissions — it appears on the map once a moderator approves it.') + refreshWarning);
   }
 
@@ -451,7 +480,7 @@ function App() {
   async function signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) setNotice('We could not sign you out. Please try again.');
-    else { setView(current => current === 'recognition' ? current : 'map'); setNotice('You have signed out.'); }
+    else { if (view !== 'recognition') navigate('profile'); setNotice('You have signed out.'); }
   }
   async function reviewReport(values) {
     await moderateReport(values);
@@ -467,23 +496,40 @@ function App() {
     }
   }
 
-  function navigate(destination) {
+  function navigate(destination, fromHistory = false) {
+    if (!fromHistory && destination !== 'report') window.history.pushState(null, '', `#${destination}`);
     if (window.location.hash === '#recognition') window.history.replaceState(null, '', window.location.pathname + window.location.search);
     if (destination === 'report') { startReport(); return; }
-    if (destination === 'profile' && !sessionUserId) {
+    if (destination === 'submissions' && !sessionUserId) {
       if (isSupabaseConfigured) { setAuthMode('sign-in'); setFormOpen(true); }
       else setNotice('Account access is unavailable until the shared database is connected.');
       return;
     }
     setNavigationTarget(destination);
-    setView(['volunteers', 'review'].includes(destination) ? destination : 'map');
-    setShowSubmissions(destination === 'profile');
-    setPanelOpen(['reports', 'profile'].includes(destination));
+    setSelected(null);
+    setView(destination === 'activities' ? 'volunteers' : ['volunteers', 'review'].includes(destination) ? destination : 'map');
+    setShowSubmissions(destination === 'submissions');
+    setPanelOpen(['reports', 'submissions'].includes(destination));
+    setFullscreenMap(false);
     window.requestAnimationFrame(() => {
-      const target = destination === 'impact' ? 'community-impact' : destination === 'reports' || destination === 'profile' ? 'community-reports' : 'explore-map';
+      if (['map', 'profile', 'volunteers', 'activities', 'about', 'review'].includes(destination)) { window.scrollTo({ top: 0, behavior: 'auto' }); return; }
+      const target = destination === 'impact' ? 'community-impact' : destination === 'reports' || destination === 'submissions' ? 'community-reports' : 'explore-map';
       document.getElementById(target)?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     });
   }
+
+  const restoreNavigation = useEffectEvent(() => {
+    const destination = window.location.hash.slice(1);
+    if (['map', 'reports', 'volunteers', 'activities', 'profile', 'submissions', 'impact', 'about', 'review'].includes(destination)) navigate(destination, true);
+    else if (!destination) navigate('map', true);
+  });
+  useEffect(() => {
+    if (authLoading) return undefined;
+    const frame = requestAnimationFrame(() => restoreNavigation());
+    const restore = () => restoreNavigation();
+    window.addEventListener('popstate', restore);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener('popstate', restore); };
+  }, [authLoading, sessionUserId]);
 
   async function welcomeAfterLogin(user) {
     if (!user) return;
@@ -519,69 +565,41 @@ function App() {
     finally { setMyReportsRetrying(false); }
   }
 
-  const activeNavigation = view === 'recognition' ? 'volunteers' : view === 'volunteers' || view === 'review' ? view : showSubmissions ? 'profile' : navigationTarget;
+  const activeNavigation = view === 'recognition' ? 'volunteers' : view === 'volunteers' || view === 'review' ? view : showSubmissions ? 'reports' : navigationTarget;
   const appliedFilterCount = [area, category, status, dateRange].filter((value) => value !== 'all').length;
+  const ReportHeading = ['reports', 'submissions'].includes(navigationTarget) ? 'h1' : 'h2';
 
-  return <main className={`app-shell${view === 'map' ? ' is-map-view' : ''}`}>
-    <a className="skip-link" href="#primary-navigation">Skip to navigation</a>
+  return <main data-destination={navigationTarget} className={`app-shell${view === 'map' ? ' is-map-view' : ''}${fullscreenMap ? ' is-fullscreen-map' : ''}`}>
+    <a className="skip-link" href={navigationTarget === 'profile' ? '#profile-title' : '#explore-map'}>Skip to content</a>
     <header className="topbar">
-      <a className="brand" href="#top" aria-label="Eastern Samar Community Action Map home"><span className="brand-mark"><img src={`${import.meta.env.BASE_URL}community-mark.svg`} width="40" height="40" alt="" /></span><span className="brand-copy"><strong>SMART ESTE</strong><span>EASTERN SAMAR · COMMUNITY MAP</span></span></a>
-      <div className="topbar-center"><i className="live-indicator" /> {area === 'all' ? 'Province-wide view' : area} <span className="topbar-divider">/</span> <span>{view === 'review' ? 'Moderation queue' : view === 'volunteers' ? 'Volunteer opportunities' : 'Community reports'}</span></div>
+      <a className="brand" href="#map" onClick={event => { event.preventDefault(); navigate('map'); }} aria-label="Eastern Samar Community Action Map home"><span className="brand-mark"><img src={`${import.meta.env.BASE_URL}community-mark.svg`} width="40" height="40" alt="" /></span><span className="brand-copy"><strong>SMART ESTE</strong><span>EASTERN SAMAR</span></span></a>
+      <nav className="desktop-navigation" id="primary-navigation" aria-label="Community platform">
+        {[['map', 'Map'], ['reports', 'Reports'], ['volunteers', 'Volunteer'], ['impact', 'Community'], ['about', 'About']].map(([target, label]) => <button key={target} aria-current={activeNavigation === target ? 'page' : undefined} onClick={() => navigate(target)}>{label}</button>)}
+      </nav>
       <div className="topbar-actions">
-        {!isSupabaseConfigured && <span className="demo-label"><i /> Demo mode</span>}
-        <button
-          type="button"
-          className="emergency-hotline-trigger"
-          onClick={() => setHotlinesOpen(true)}
-          aria-label="Eastern Samar emergency hotlines"
-          title="Source-linked emergency contacts"
-        >
-          <PhoneCall size={14} className="hotline-pulse-icon" />
-          <span>Hotlines</span>
-        </button>
-        <ThemeToggle mode={themeMode} onChange={chooseThemeMode} />
-        <button className="outline-button volunteer-nav-button" onClick={() => setView(view === 'volunteers' ? 'map' : 'volunteers')} aria-label={view === 'volunteers' ? 'Return to community map' : 'Open volunteer opportunities'} title={view === 'volunteers' ? 'Community map' : 'Volunteer opportunities'}>{view === 'volunteers' ? <Compass size={14} /> : <Users size={14} />}<span>{view === 'volunteers' ? 'Map' : 'Volunteers'}</span></button>
-        {isStaff && <><a className="outline-button" href={`${import.meta.env.BASE_URL}operations/`}>Operations command</a><button className="outline-button review-nav-button" onClick={() => setView(view === 'review' ? 'map' : 'review')}>{view === 'review' ? 'Community map' : 'Review queue'}</button></>}
-        {session?.user ? <><span className="account-label">{profile?.display_name || session.user.email}</span><button className="icon-button" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button></> : <button className="outline-button" disabled={authLoading} onClick={() => { if (isSupabaseConfigured) { setAuthMode('sign-in'); setFormOpen(true); } else setNotice('Demo mode is active. Add Supabase keys to enable account sign-in and reporting.'); }}>{authLoading ? "Restoring session?" : "Sign in"}</button>}
-        <button className="icon-button mobile-menu" onClick={() => view === 'volunteers' ? document.getElementById('volunteer-opportunities')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : setPanelOpen((open) => !open)} aria-label={view === 'volunteers' ? 'Find volunteer opportunities' : 'Open report filters'} title={view === 'volunteers' ? 'Find volunteer opportunities' : 'Open report filters'}><Menu size={20} /></button>
-        <button className="primary-button top-report-button" onClick={startReport}><Plus size={16} /><span className="report-label-wide">Report a concern</span><span className="report-label-compact">Report</span></button>
+        <button className="header-search" aria-label="Search reports and places" onClick={() => { navigate('reports'); requestAnimationFrame(() => document.querySelector('.search-box input')?.focus()); }}><Search size={18} /><span>Search your community</span></button>
+        <button className="icon-button header-profile" aria-label="Open profile" aria-busy={authLoading} onClick={() => navigate('profile')}><ShieldCheck size={21} /></button>
+        <span className="header-account">{sessionUserId ? profile?.display_name || 'My account' : 'Resident access'}</span>
       </div>
     </header>
-    <nav className="primary-navigation" id="primary-navigation" aria-label="Community platform">
-      <button aria-current={activeNavigation === 'map' ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={17} />Explore map</button>
-      <button aria-current={activeNavigation === 'reports' ? 'page' : undefined} onClick={() => navigate('reports')}><Inbox size={17} />Community reports</button>
-      <button aria-current={activeNavigation === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={17} />Volunteer</button>
-      <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={17} />My submissions</button>
-      <button aria-current={activeNavigation === 'impact' ? 'page' : undefined} onClick={() => navigate('impact')}><Activity size={17} />Impact</button>
-      {isStaff && <><button aria-current={view === 'review' ? 'page' : undefined} onClick={() => navigate('review')}><Layers3 size={17} />Administration</button><a className="navigation-operations" href={`${import.meta.env.BASE_URL}operations/`}><ShieldCheck size={16} />Operations</a></>}
-    </nav>
     <NetworkStatus />
     <section className="dashboard-heading" id="top">
       <div className="heading-copy">
-        <span className="eyebrow">OUR COAST. OUR COMMUNITIES.</span>
-        <h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'recognition' ? 'Community Recognition' : view === 'review' ? 'Make the next step count.' : view === 'volunteers' ? 'A little time. A local difference.' : 'Your Community. Your Voice. Our Action.'}</h1>
-        <p>{view === 'recognition' ? 'Celebrating verified service, with privacy on your terms.' : view === 'review' ? 'Review concerns and help local action move forward.' : view === 'volunteers' ? 'Find an activity, lend your skills, and be part of something close to home.' : 'A community-powered platform where Eastern Samar residents can report local concerns, participate in volunteer initiatives, and contribute to a more responsive and resilient province.'}</p>
+        <span className="eyebrow"><MapPin size={14} /> EASTERN SAMAR · TOGETHER, WE CAN</span>
+        <h1 id={view === 'volunteers' ? 'volunteer-title' : undefined}>{view === 'recognition' ? 'Community Recognition' : view === 'review' ? 'Help local action move forward.' : view === 'volunteers' ? 'A little time. A local difference.' : <>Your Community.<br />Your Voice. <em>Our Action.</em></>}</h1>
+        <p>{view === 'volunteers' ? 'Find an activity, lend your skills, and be part of something close to home.' : 'Report local concerns, volunteer, and help build a safer, cleaner, and more resilient Eastern Samar.'}</p>
+        <div className="hero-actions"><button className="primary-button" onClick={startReport}><Plus size={20} />Report a Concern<ArrowRight size={18} /></button><button className="outline-button" onClick={() => navigate('volunteers')}><Users size={19} />Join as Volunteer</button></div>
       </div>
-      {view !== 'volunteers' && (
-        <div className="heading-meta">
-          <span className="atlas-place-note"><MapPin size={16} />One city. Twenty-two municipalities.</span>
-          <button className="text-button" onClick={() => setHotlinesOpen(true)}><PhoneCall size={14} /> Emergency Hotlines</button>
-          <button className="text-button" onClick={() => setNotice('Public reports are visible only after authorized staff approve them. Private exact locations and evidence are restricted by database policies.')}><CircleHelp size={16} /> About this map</button>
-        </div>
-      )}
+      {!loading && !loadError && reports.length > 0 ? <section className="hero-impact" aria-label="Loaded community impact"><span className="eyebrow">LOCAL VOICES. SHARED PROGRESS.</span><dl><div><dt>Published reports</dt><dd>{reports.length}</dd></div><div><dt>Municipalities reached</dt><dd>{new Set(reports.map(report => report.municipality).filter(Boolean)).size}</dd></div><div><dt>Resolved</dt><dd>{reports.filter(report => report.status === 'resolved').length}</dd></div></dl><small>Based on public reports loaded in this session.</small></section> : <div className="hero-note"><span>LOCAL VOICES. SHARED PROGRESS.</span><p>Small actions.<br />Stronger communities.</p><span>For every barangay. For every Estehanon.</span></div>}
     </section>
-    {!session?.user && <section className="community-intro" aria-label="Eastern Samar project introduction">
-      <div>
-        <span className="eyebrow">BUILT FOR ESTEHANONS</span>
-        <h2>Built for Estehanons, by the community.</h2>
-      </div>
-      <p>From our barangays to our coastlines, the Eastern Samar Community Action Map helps neighbors raise concerns, volunteer, and support local action that protects our communities and helps fellow Estehanons.</p>
-      <small>Developed by Julius Lorenzana</small>
-    </section>}
     {loadError && <div className="app-error" role="alert"><strong>Unable to load the shared platform.</strong><span>{loadError}</span><button className="outline-button" onClick={() => window.location.reload()}>Try again</button></div>}
-    {view === 'map' && <CivicOverview staff={isStaff} reports={reports} activities={volunteerMapData.opportunities} onReport={startReport} onMap={() => navigate('map')} onVolunteer={() => navigate('volunteers')} />}
+    {view === 'map' && ['about', 'impact'].includes(navigationTarget) && <header className="page-intro"><span className="eyebrow">SMART ESTE · EASTERN SAMAR</span><h1>{navigationTarget === 'about' ? 'Local voices. Meaningful action.' : 'Community impact'}</h1><p>{navigationTarget === 'about' ? 'A community service platform for raising concerns, following local progress, and volunteering close to home.' : 'Explore progress from the published reports loaded in this session. Current map filters apply.'}</p></header>}
+    {view === 'map' && navigationTarget === 'about' && <CivicOverview staff={isStaff} reports={reports} activities={volunteerMapData.opportunities} onReport={startReport} onMap={() => navigate('map')} onVolunteer={() => navigate('volunteers')} />}
+    {view === 'map' && navigationTarget === 'profile' && <ResidentProfile user={session?.user} profile={profile} isStaff={isStaff} themeMode={themeMode} onTheme={chooseThemeMode} onNavigate={navigate} onSignIn={() => { if (isSupabaseConfigured) { setAuthMode('sign-in'); setFormOpen(true); } else setNotice('Account access is unavailable until the shared database is connected.'); }} onSignOut={signOut} onHotlines={() => setHotlinesOpen(true)} />}
     <Suspense fallback={<section className="view-loading" role="status"><Compass size={22} /><strong>Opening {view === 'review' ? 'administration' : 'volunteer opportunities'}…</strong><span>The community map will be ready when you return.</span></section>}>
-    {view === 'recognition' ? <CommunityRecognition userId={sessionUserId} onBack={() => { window.history.replaceState(null, '', window.location.pathname + window.location.search); setView('volunteers'); }} onSignIn={() => { setAuthMode('sign-in'); setFormOpen(true); }} /> : view === 'volunteers' ? <VolunteerBoard
+    {view === 'recognition' ? <CommunityRecognition userId={sessionUserId} onBack={() => navigate('volunteers')} onSignIn={() => { setAuthMode('sign-in'); setFormOpen(true); }} /> : view === 'volunteers' ? <VolunteerBoard
+      key={navigationTarget === 'activities' ? 'my-activities' : 'opportunities'}
+      initialView={navigationTarget === 'activities' ? 'my-activities' : 'opportunities'}
       configured={isSupabaseConfigured}
       userId={sessionUserId}
       theme={theme}
@@ -591,10 +609,11 @@ function App() {
         setAuthMode(mode);
         setFormOpen(true);
       }}
-      onMap={() => setView('map')}
-      onOpenReport={(report) => { setView('map'); openReport(report); }}
+      onMap={() => navigate('map')}
+      onOpenReport={(report) => { navigate('map'); openReport(report); }}
       onDataLoaded={updateVolunteerMapData}
       onShowOnMap={(opportunity) => {
+        navigate('map');
         setSelected(null);
         if (hasCoordinates(opportunity)) setFocus({ latlng: [Number(opportunity.latitude), Number(opportunity.longitude)], zoom: 14, nonce: ++focusNonce.current });
         setView('map');
@@ -603,10 +622,13 @@ function App() {
       initialAction={volunteerInitial?.action}
       onOpportunityOpened={clearVolunteerInitial}
     /> : view === 'review' && isStaff ? <ModeratorDashboard reports={queue} categories={categories} profiles={profiles} isAdmin={profile?.role === 'admin'} currentUserId={sessionUserId} onModerate={reviewReport} onChangeRole={changeRole} onLoadEvidence={async (reportId) => { const result = await fetchEvidence(reportId); return result; }} onLoadAIReview={fetchAIReview} onCreateVolunteerOpportunity={createVolunteerOpportunity} onUpdateVolunteerOpportunity={updateVolunteerOpportunity} onLoadVolunteerManagement={fetchVolunteerManagementOverview} onLoadVolunteerRegistrations={fetchOpportunityRegistrations} onUpdateVolunteerRegistration={updateVolunteerRegistration} onUpdateVolunteerOpportunityStatus={updateVolunteerOpportunityStatus} onSetVolunteerRegistrationOpen={setVolunteerRegistrationOpen} /> : <>
-      <section className={`workspace${panelOpen ? ' panel-open' : ''}`}>
+      <section ref={fullscreenRef} tabIndex={fullscreenMap ? -1 : undefined} role={fullscreenMap ? 'dialog' : undefined} aria-modal={fullscreenMap || undefined} aria-label={fullscreenMap ? 'Eastern Samar full map' : undefined} className={`workspace${panelOpen ? ' panel-open' : ''}`}>
         <aside className="report-panel" id="community-reports" aria-label="Community reports and filters" tabIndex={0}>
-          <div className="panel-heading"><div><span className="eyebrow">COMMUNITY PULSE</span><h2>Reported concerns <span>{filtered.length}</span></h2></div><button className="icon-button mobile-close" onClick={() => setPanelOpen(false)} aria-label="Close report panel"><X size={18} /></button></div>
+          <div className="panel-heading"><div><span className="eyebrow">YOUR COMMUNITY, IN VIEW</span><ReportHeading>{showSubmissions ? 'My reports' : 'Recent reports'} <span>{showSubmissions ? myReports.length : filtered.length}</span></ReportHeading></div><button className="icon-button mobile-close" onClick={() => setPanelOpen(false)} aria-label="Close report panel"><X size={18} /></button></div>
           <div className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search reports, municipalities, barangays" aria-label="Search reports or places" />{query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={14} /></button>}</div>
+          <div className="report-feed-tabs" role="group" aria-label="Report views"><button aria-pressed={!showSubmissions && !nearby} onClick={() => { setShowSubmissions(false); setNearby(null); setLocationError(''); }}>Recent</button><button aria-pressed={Boolean(nearby) && !showSubmissions} disabled={locating} onClick={findNearby}>{locating ? 'Locating…' : 'Nearby'}</button><button aria-pressed={showSubmissions} onClick={() => navigate('submissions')}>My Reports</button></div>
+          {nearby && !showSubmissions && <p className="nearby-notice" role="status">Within 10 km of your location, using approximate public report points. Other filters still apply. Your location is not saved.</p>}
+          {locationError && <p className="nearby-notice" role="alert">{locationError}</p>}
           {query.trim().length > 1 && (
             <div className="place-suggestions" aria-label="Places matching your search">
               {placeMatches.length ? placeMatches.map((option) => <button type="button" key={`${option.type}-${option.label}`} className="place-chip" onClick={() => focusOnPlace(option)}><MapPin size={11} /> <span>{option.label}</span> <b>{option.count}</b></button>) : <span className="place-chip-empty">No place in the published reports matches “{query.trim()}” yet.</span>}
@@ -620,13 +642,16 @@ function App() {
             <label className="filter-select"><CalendarDays size={14} /><select value={dateRange} onChange={(event) => setDateRange(event.target.value)} aria-label="Filter by date"><option value="all">Any time</option><option value="7">Past 7 days</option><option value="30">Past 30 days</option><option value="90">Past 90 days</option></select><ChevronDown size={13} /></label>
           </div>
           </details>
-          <div className="list-toolbar"><span>{listCountLabel}</span>{sessionUserId && <button className={`sort-button${showSubmissions ? ' is-active' : ''}`} onClick={() => setShowSubmissions((open) => !open)}><Inbox size={13} /> {showSubmissions ? 'Community feed' : submissionsLabel}</button>}<button className="sort-button" onClick={() => setReports((current) => [...current].sort((first, second) => second.created_at.localeCompare(first.created_at)))}><ArrowDownUp size={13} /> Recent</button></div>
-          <div className="report-list">{loading ? <div className="empty-state"><Search size={22} /><strong>Loading reports…</strong></div> : showSubmissions ? (myReportsError ? <div className="empty-state" role="alert"><Inbox size={22} /><strong>Submission history unavailable</strong><span>{myReportsError}</span><button className="outline-button" disabled={myReportsRetrying} onClick={retryMyReports}>{myReportsRetrying ? 'Trying again…' : 'Try again'}</button></div> : myReports.length ? myReports.slice(0,listLimit).map((report) => <ReportRow key={report.id} report={report} theme={theme} decision={decisionText(report)} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Inbox size={22} /><strong>No submissions yet</strong><span>Reports you send appear here with their review status.</span></div>) : filtered.length ? filtered.slice(0,listLimit).map((report) => <ReportRow key={report.id} report={report} theme={theme} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Search size={22} /><strong>No reports yet</strong><span>Approved community reports will appear here.</span></div>}</div>
-          {(showSubmissions ? myReports.length : filtered.length) > listLimit && <button className="outline-button" onClick={() => setListLimit(value => value+30)}>Show more concerns</button>}{!showSubmissions && reports.length >= 500 && !olderExhausted && <button className="outline-button" disabled={olderBusy} onClick={loadOlderReports}>{olderBusy ? "Loading older reports?" : "Load older reports"}</button>}<div className="panel-footer"><span><Users size={15} /> Built with community input</span><button className="footer-link" onClick={() => setNotice('Community reports are visible only after authorized review. Verification is not government endorsement.')}><ShieldCheck size={14} /> Review standards</button></div>
+          <div className="list-toolbar"><span role="status">{listCountLabel} · newest first</span></div>
+          <div className="report-list">{loading ? <div className="empty-state"><Search size={22} /><strong>Loading reports…</strong></div> : showSubmissions ? (myReportsError ? <div className="empty-state" role="alert"><Inbox size={22} /><strong>Submission history unavailable</strong><span>{myReportsError}</span><button className="outline-button" disabled={myReportsRetrying} onClick={retryMyReports}>{myReportsRetrying ? 'Trying again…' : 'Try again'}</button></div> : filteredMyReports.length ? filteredMyReports.slice(0,listLimit).map((report) => <ReportRow key={report.id} report={report} theme={theme} decision={decisionText(report)} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Inbox size={22} /><strong>No submissions yet</strong><span>Reports you send appear here with their review status.</span></div>) : filtered.length ? filtered.slice(0,listLimit).map((report) => <ReportRow key={report.id} report={report} theme={theme} categoryName={categoryNames[report.category_slug] ?? report.category_slug} active={selected?.id === report.id} onSelect={openReport} />) : <div className="empty-state"><Search size={22} /><strong>No reports yet</strong><span>Approved community reports will appear here.</span></div>}</div>
+          {(showSubmissions ? filteredMyReports.length : filtered.length) > listLimit && <button className="outline-button" onClick={() => setListLimit(value => value+30)}>Show more concerns</button>}{!showSubmissions && reports.length >= 500 && !olderExhausted && <button className="outline-button" disabled={olderBusy} onClick={loadOlderReports}>{olderBusy ? "Loading older reports?" : "Load older reports"}</button>}<div className="panel-footer"><span><Users size={15} /> Built with community input</span><button className="footer-link" onClick={() => setNotice('Community reports are visible only after authorized review. Verification is not government endorsement.')}><ShieldCheck size={14} /> Review standards</button></div>
         </aside>
+        <div className="map-column"><div className="map-browse-bar"><div><span className="eyebrow">EXPLORE YOUR PROVINCE</span><h2>Eastern Samar</h2></div><div><button className="outline-button" onClick={() => setFullscreenMap(value => !value)}>{fullscreenMap ? 'Close full map' : 'Expand map'}</button><button className="outline-button map-list-alternative" onClick={() => navigate('reports')}>Report list</button></div></div>
+        {fullscreenMap && <label className="expanded-map-search"><Search size={18} /><input aria-label="Search the full map" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search municipality, barangay or report" />{query && <button className="icon-button" aria-label="Clear map search" onClick={() => setQuery('')}><X size={18} /></button>}</label>}
         <ProvinceMap
           reports={filtered}
           theme={theme}
+          onTheme={chooseThemeMode}
           categories={categories}
           counts={counts}
           category={category}
@@ -639,17 +664,18 @@ function App() {
           focus={focus}
           picking={picking}
           onPick={pickPoint}
-          onCancelPick={() => { setPicking(false); setFormOpen(true); }}
+          onCancelPick={() => { setPicking(false); setFullscreenMap(false); setFormOpen(true); }}
           pickLocation={location}
           onStartReport={startReport}
           mappedCount={mappedCount}
           volunteerOpportunities={volunteerMapData.opportunities}
           volunteerSignupCounts={volunteerMapData.signupCounts}
           onVolunteerOpen={(opportunity, action) => {
+            navigate('volunteers');
             setVolunteerInitial({ id: opportunity.id, action });
             setView('volunteers');
           }}
-          detail={selected ? <ReportDetailCard
+          detail={selected && !['reports', 'submissions'].includes(navigationTarget) ? <ReportDetailCard
             report={selected}
             canViewEvidence={isStaff || myReports.some((report) => report.id === selected.id)}
             categoryName={categoryNames[selected.category_slug] ?? selected.category_slug}
@@ -658,7 +684,7 @@ function App() {
             decision={showSubmissions ? decisionText(selected) : undefined}
             onClose={() => setSelected(null)}
           /> : null}
-        />
+        /></div>
       </section>
       <ReportTrends reports={categoryBase} />
       <ProvincePulse
@@ -692,9 +718,10 @@ function App() {
       <button aria-current={activeNavigation === 'reports' ? 'page' : undefined} onClick={() => navigate('reports')}><Inbox size={20} /><span>Reports</span></button>
       <button onClick={() => navigate('report')}><Plus size={21} /><span>Submit</span></button>
       <button aria-current={activeNavigation === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={20} /><span>Volunteer</span></button>
-      <button aria-current={showSubmissions ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={20} /><span>Profile</span></button>
-      {isStaff && <a href={`${import.meta.env.BASE_URL}operations/`}><Layers3 size={20} /><span>Operations</span></a>}
+      <button aria-current={activeNavigation === 'profile' ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={20} /><span>Profile</span></button>
     </nav>
+    {receipt && <ReportReceipt report={receipt} onClose={() => setReceipt(null)} onReports={() => { setReceipt(null); navigate('submissions'); }} onAnother={() => { setReceipt(null); startReport(); }} />}
+    {selected && ['reports', 'submissions'].includes(navigationTarget) && <ReportDetailsDialog report={selected} categoryName={categoryNames[selected.category_slug] ?? selected.category_slug} markerColor={categoryVisual(selected.category_slug, theme).color} statusColorValue={statusColor(selected.status, theme)} canViewEvidence={isStaff || myReports.some(report => report.id === selected.id)} decision={showSubmissions ? decisionText(selected) : undefined} onClose={() => setSelected(null)} />}
     <EmergencyHotlineDrawer
       isOpen={hotlinesOpen}
       onClose={() => setHotlinesOpen(false)}

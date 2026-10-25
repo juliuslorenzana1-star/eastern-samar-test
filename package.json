@@ -15,7 +15,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "test:onboarding": "node --test tests/onboarding.test.mjs",
     "test:onboarding:browser": "node tests/onboarding-browser.mjs",
-    "test:interface:browser": "node tests/interface-browser.mjs"
+    "test:interface:browser": "node tests/interface-browser.mjs",
+    "test:redesign:browser": "node tests/redesign-browser.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",

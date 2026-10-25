@@ -45,7 +45,7 @@ try {
     await page.goto(base,{waitUntil:'domcontentloaded'});await page.locator('.leaflet-map').waitFor();await page.waitForFunction(()=>document.querySelector('.report-list .empty-state strong')?.textContent==='No reports yet');
     await noOverflow(page);
     if(width<=900) {
-      const map=await page.locator('.map-stage').boundingBox();assert.ok(map.y<220,'Map starts in the first screen');assert.ok(map.height>=280);
+      const map=await page.locator('.map-stage').boundingBox();assert.ok(map.y<540,'Map preview follows the compact mobile introduction');assert.ok(map.height>=280);
       await page.getByRole('button',{name:/^Filters/}).click();
       const sheet=page.getByRole('dialog',{name:'Filter community map',exact:true});await sheet.waitFor();
       for(const label of Object.values(CATEGORY_LABELS)) {
@@ -56,10 +56,11 @@ try {
       await sheet.getByRole('button',{name:/Disaster and Emergency/}).click();await sheet.getByRole('button',{name:'Apply filters',exact:true}).click();
       assert.match(await page.locator('.map-location-copy').innerText(),/Guiuan/);
       await page.getByRole('button',{name:/^Filters/}).click();await sheet.getByRole('button',{name:'Clear filters',exact:true}).click();await sheet.getByRole('button',{name:'Apply filters',exact:true}).click();
-      await page.getByRole('button',{name:'Move map',exact:true}).click();assert.ok(await page.locator('.map-stage').evaluate(el=>el.classList.contains('is-touch-active')));await page.getByRole('button',{name:'Done moving',exact:true}).click();
+      assert.ok(await page.locator('.map-stage').evaluate(el=>el.classList.contains('is-touch-active')));await page.getByRole('button',{name:'Done moving',exact:true}).click();await page.getByRole('button',{name:'Move map',exact:true}).click();
     } else {
-      await page.locator('.legend-toggle').click();assert.equal(await page.locator('.legend-item').count(),10);
-      assert.ok(await page.locator('.legend-item span').evaluateAll(els=>els.every(el=>getComputedStyle(el).whiteSpace==='normal'&&getComputedStyle(el).textOverflow!=='ellipsis')));
+      assert.equal(await page.locator('select[aria-label="Map category"] option').count(),11);
+      await page.getByRole('combobox',{name:'Map category',exact:true}).selectOption('disaster-emergency');
+      await page.getByRole('combobox',{name:'Map category',exact:true}).selectOption('all');
     }
     if(width===320||width===768)await page.screenshot({path:`test-results.local/focused-map-${width}-${theme}.png`});
     await page.goto(new URL('#recognition',base).href,{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'Estehanon Community Leaders',exact:true}).waitFor();await page.locator('.recognition-ranking > li').first().waitFor();
@@ -80,7 +81,7 @@ try {
       await page.getByRole('textbox',{name:'Public alias',exact:true}).fill('Private volunteer alias');
       await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Save privacy settings',exact:true}).click();await page.getByText('Your recognition privacy settings were saved.',{exact:true}).waitFor();
       await page.getByRole('checkbox').uncheck();await page.getByRole('button',{name:'Save privacy settings',exact:true}).click();await page.getByText('Private / unranked',{exact:true}).waitFor();
-      await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('button',{name:'Sign in to view my contribution',exact:true}).waitFor();assert.equal(await page.getByText('Verified coastal cleanup',{exact:true}).count(),0);
+      await page.getByRole('button',{name:'Open profile',exact:true}).click();await page.getByRole('button',{name:'Log out',exact:true}).click();await page.getByText('You have signed out.',{exact:true}).waitFor();await page.goto(new URL('#recognition',base).href,{waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'Sign in to view my contribution',exact:true}).waitFor();assert.equal(await page.getByText('Verified coastal cleanup',{exact:true}).count(),0);
     }
     await noOverflow(page);assert.deepEqual(errors,[]);console.log(`PASS recognition ${state}`);await page.close();
   }

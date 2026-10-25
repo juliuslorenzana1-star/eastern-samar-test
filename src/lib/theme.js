@@ -11,9 +11,9 @@ const storageKey = 'escam.theme-mode';
 export function readStoredThemeMode() {
   try {
     const stored = window.localStorage.getItem(storageKey);
-    return themeModes.includes(stored) ? stored : 'system';
+    return themeModes.includes(stored) ? stored : 'dark';
   } catch {
-    return 'system';
+    return 'dark';
   }
 }
 

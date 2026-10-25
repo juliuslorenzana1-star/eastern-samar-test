@@ -57,7 +57,8 @@ async function openPage({ width = 390, height = 844, theme = 'dark', user, signu
   return { page, errors, writes };
 }
 async function signUp(page) {
-  await page.locator('.topbar').getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Open profile', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign in or create an account', exact: false }).click();
   await page.getByRole('button', { name: 'Create an account', exact: true }).click();
   await page.locator('.auth-modal input[autocomplete="name"]').fill('Estehanon');
   await page.locator('.auth-modal input[type="email"]').fill('welcome-qa@example.invalid');
@@ -131,7 +132,7 @@ try {
       assert.equal(await page.locator('.smart-confirm-note').count(), 0);
       await page.getByRole('button', { name: 'Skip tour', exact: true }).click();
       await page.reload({ waitUntil: 'domcontentloaded' });
-      await page.locator('.leaflet-map').waitFor();
+      await page.locator('.topbar').waitFor();
       assert.equal(await page.locator('.smart-tour-dialog').count(), 0, 'Completion must survive reload');
     } else {
       if (scenario === 'error') await page.locator('.auth-modal .form-error').waitFor();

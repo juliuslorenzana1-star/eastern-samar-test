@@ -26,11 +26,12 @@ try {
   await page.locator('.report-filter-disclosure > summary').click();
   await page.getByRole('combobox',{name:'Filter by municipality',exact:true}).selectOption('Guiuan');
   assert.match(await page.locator('.map-location-copy').innerText(),/Guiuan/);
+  await page.getByRole('button',{name:'Open profile',exact:true}).click();
   await page.getByRole('radio',{name:'Dark',exact:true}).click();
   await page.reload({waitUntil:'domcontentloaded'});
-  await page.locator('.leaflet-map').waitFor();
+  await page.locator('.resident-profile').waitFor();
   assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
-  await page.getByRole('button',{name:'Eastern Samar emergency hotlines',exact:true}).click();
+  await page.getByRole('button',{name:'Emergency contacts',exact:true}).click();
   const dialog=page.getByRole('dialog',{name:'Eastern Samar Hotlines',exact:true});
   await dialog.waitFor();
   assert.equal(await dialog.locator('a[href^="tel:"]').count(),1,'Only sourced numbers may be dialled');
@@ -45,7 +46,7 @@ try {
   await page.setViewportSize({width:320,height:640});
   await page.goto(process.env.UI_TEST_URL || 'http://localhost:5178/',{waitUntil:'domcontentloaded'});
   await page.locator('.leaflet-map').waitFor(); await page.evaluate(()=>window.scrollTo(0,0));
-  const mobileMap=await page.locator('.map-stage').boundingBox(); assert.ok(mobileMap.y<220);
+  const mobileMap=await page.locator('.map-stage').boundingBox(); assert.ok(mobileMap.y<540);
   await page.getByRole('button',{name:/^Filters/}).click();
   const filters=page.getByRole('dialog',{name:'Filter community map',exact:true}); await filters.waitFor();
   await page.waitForFunction(()=>document.querySelectorAll('.category-sheet-options button').length===11);

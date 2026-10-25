@@ -96,7 +96,7 @@ function SummaryMetric({ label, value, icon: Icon, loading }) {
 
 export default function VolunteerBoard({
   configured, userId, theme = 'light', reports = [], onSignIn, onMap, onOpenReport, onShowOnMap,
-  initialOpportunityId, initialAction, onOpportunityOpened, onDataLoaded,
+  initialOpportunityId, initialAction, onOpportunityOpened, onDataLoaded, initialView = 'opportunities',
 }) {
   const [opportunities, setOpportunities] = useState([]);
   const [signupCounts, setSignupCounts] = useState({});
@@ -108,7 +108,7 @@ export default function VolunteerBoard({
   const [registrationError, setRegistrationError] = useState('');
   const [message, setMessage] = useState('');
   const [busyId, setBusyId] = useState(null);
-  const [view, setView] = useState('opportunities');
+  const [view, setView] = useState(initialView);
   const [selected, setSelected] = useState(null);
   const [dialogState, setDialog] = useState('');
   const dialog = dialogState === 'signin' && userId && selected ? 'confirm' : dialogState;
@@ -122,6 +122,7 @@ export default function VolunteerBoard({
   const [now] = useState(() => Date.now());
   const [hasConsented, setHasConsented] = useState(false);
   const initialOpened = useRef(null);
+  const joinLock = useRef(false);
   const activityDialogRef = useDialogFocus({ active: Boolean(dialog && selected), busy: Boolean(busyId), onClose: () => setDialog('') });
 
   async function reloadOpportunities() {
@@ -275,7 +276,8 @@ export default function VolunteerBoard({
   }
 
   async function confirmJoin() {
-    if (!selected || !userId) return;
+    if (!selected || !userId || joinLock.current) return;
+    joinLock.current = true;
     setBusyId(selected.id);
     setMessage('');
     try {
@@ -295,6 +297,7 @@ export default function VolunteerBoard({
       if (joinError.code === '23505') await reloadRegistrations();
       if (/capacity/i.test(joinError.message ?? '')) await reloadOpportunities();
     } finally {
+      joinLock.current = false;
       setBusyId(null);
     }
   }
@@ -371,6 +374,7 @@ export default function VolunteerBoard({
 
   return <section className="volunteer-page" aria-labelledby="volunteer-title">
     <header className="volunteer-heading">
+      <h1 id="volunteer-title">Volunteer in your community</h1>
       <div><span className="eyebrow">EASTERN SAMAR · COMMUNITY ACTION</span></div>
       <button type="button" className="outline-button volunteer-map-button" onClick={onMap}><ArrowLeft size={14} /> Back to map</button>
     </header>
@@ -391,9 +395,9 @@ export default function VolunteerBoard({
 
     <a className="outline-button recognition-link" href="#recognition">Community Recognition</a>
 
-    <div className="volunteer-tabs" role="tablist" aria-label="Volunteer views">
-      <button type="button" role="tab" aria-selected={view === 'opportunities'} className={view === 'opportunities' ? 'is-active' : ''} onClick={() => setView('opportunities')}>Opportunities <span>{opportunities.length}</span></button>
-      <button type="button" role="tab" aria-selected={view === 'my-activities'} className={view === 'my-activities' ? 'is-active' : ''} onClick={() => { setView('my-activities'); reloadRegistrations(); }}>My Activities <span>{userId ? registrations.length : '—'}</span></button>
+    <div className="volunteer-tabs" role="group" aria-label="Volunteer views">
+      <button type="button" aria-pressed={view === 'opportunities'} className={view === 'opportunities' ? 'is-active' : ''} onClick={() => setView('opportunities')}>Opportunities <span>{opportunities.length}</span></button>
+      <button type="button" aria-pressed={view === 'my-activities'} className={view === 'my-activities' ? 'is-active' : ''} onClick={() => { setView('my-activities'); reloadRegistrations(); }}>My Activities <span>{userId ? registrations.length : '—'}</span></button>
     </div>
 
     {view === 'opportunities' && <section className="volunteer-browse" id="volunteer-opportunities" aria-label="Browse volunteer opportunities">

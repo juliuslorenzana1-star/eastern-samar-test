@@ -63,20 +63,22 @@ try {
     assert.equal(await page.locator('.legend-items').count(), 0);
     assert.equal(await page.locator('.community-more').count(), 0, 'Navigation must not have the old More dropdown');
     if (!phone) {
-      await page.getByRole('navigation', { name: 'Community platform' }).getByRole('button', { name: 'Impact', exact: true }).click();
-      assert.equal(await page.getByRole('button', { name: 'Impact', exact: true }).getAttribute('aria-current'), 'page');
-      await page.getByRole('button', { name: 'Explore map', exact: true }).click();
+      await page.getByRole('navigation', { name: 'Community platform' }).getByRole('button', { name: 'Community', exact: true }).click();
+      assert.equal(await page.getByRole('button', { name: 'Community', exact: true }).getAttribute('aria-current'), 'page');
+      await page.getByRole('button', { name: 'Map', exact: true }).click();
     }
     await noOverflow(page);
     await page.screenshot({ path: fileURLToPath(new URL(`community-ui-${width}-${height}-${theme}.png`, output)), animations: 'disabled', fullPage: true });
     if (phone) await page.locator('.mobile-bottom-nav').getByRole('button', { name: 'Reports', exact: true }).click();
-    else if (width <= 900) await page.getByRole('button', { name: 'Community reports', exact: true }).click();
+    else if (width <= 900) await page.getByRole('button', { name: 'Reports', exact: true }).click();
     await page.locator('.report-filter-disclosure > summary').click();
     await page.getByRole('combobox', { name: 'Filter by category', exact: true }).selectOption('environment');
     await page.waitForFunction(() => document.querySelectorAll('.report-card').length === 1);
     await page.locator('.report-card').first().click();
     await page.getByRole('heading', { name: reports[0].title, exact: true }).waitFor();
     await page.getByRole('button', { name: 'Close details', exact: true }).click();
+    if (phone) { await page.getByRole('button', { name: 'Open profile', exact: true }).click(); await page.getByRole('button', { name: 'Help & reporting guidelines', exact: true }).click(); await page.evaluate(() => { history.pushState(null, '', '#impact'); dispatchEvent(new PopStateEvent('popstate')); }); }
+    else await page.getByRole('button', { name: 'Community', exact: true }).click();
     await page.getByRole('button', { name: 'More community insights', exact: true }).click();
     assert.equal(await page.locator('.pulse-tile').count(), 6);
     await noOverflow(page);
@@ -116,9 +118,9 @@ try {
   // Staff destinations are direct links too, including on narrower tablets.
   const staffNavigation = await pageFor(768, 1024, 'dark', true);
   await staffNavigation.page.goto(base, { waitUntil: 'domcontentloaded' });
-  const platformNav = staffNavigation.page.getByRole('navigation', { name: 'Community platform' });
-  await platformNav.getByRole('link', { name: 'Operations', exact: true }).waitFor();
-  await platformNav.getByRole('button', { name: 'Administration', exact: true }).waitFor();
+  await staffNavigation.page.getByRole('button', { name: 'Open profile', exact: true }).click();
+  await staffNavigation.page.getByRole('link', { name: 'Operations command', exact: true }).waitFor();
+  await staffNavigation.page.getByRole('button', { name: 'Staff moderation', exact: true }).waitFor();
   await noOverflow(staffNavigation.page);
   assert.deepEqual(staffNavigation.errors, []);
   await staffNavigation.page.close();

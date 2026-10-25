@@ -1,5 +1,20 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 
+// Dialogs can hand focus to another dialog (for example map picking → review
+// or report form → confirmation). Keep the page locked until the last closes.
+const scrollLocks = new Set();
+let previousPageOverflow = '';
+function lockPage() {
+  const owner = Symbol('dialog');
+  if (!scrollLocks.size) previousPageOverflow = document.body.style.overflow;
+  scrollLocks.add(owner);
+  document.body.style.overflow = 'hidden';
+  return () => {
+    scrollLocks.delete(owner);
+    if (!scrollLocks.size) document.body.style.overflow = previousPageOverflow;
+  };
+}
+
 // Keep keyboard focus in a modal and return it to the opener on dismissal.
 export default function useDialogFocus({ active = true, busy = false, onClose }) {
   const dialogRef = useRef(null);
@@ -9,8 +24,7 @@ export default function useDialogFocus({ active = true, busy = false, onClose })
     const dialog = dialogRef.current;
     if (!dialog) return undefined;
     const opener = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const unlockPage = lockPage();
     const controls = () => [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]')]
       .filter((element) => element.getClientRects().length > 0);
     // Wait for the entry overlay to release inert content before taking focus.
@@ -32,7 +46,7 @@ export default function useDialogFocus({ active = true, busy = false, onClose })
     return () => {
       window.cancelAnimationFrame(frame); observer.disconnect();
       dialog.removeEventListener('keydown', keydown);
-      document.body.style.overflow = previousOverflow;
+      unlockPage();
       if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
     };
   }, [active]);

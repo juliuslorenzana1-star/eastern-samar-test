@@ -110,17 +110,18 @@ function MapGestures({ mobile, enabled }) {
 }
 
 export default function ProvinceMap({
-  reports, theme, categories, counts, category, onCategory, area, selected, onSelect,
+  reports, theme, categories, counts, category, onCategory, area, selected, onSelect, onTheme,
   focus, picking, onPick, onCancelPick, pickLocation, onStartReport, detail, mappedCount,
   volunteerOpportunities = [], volunteerSignupCounts = {}, onVolunteerOpen, filters, onFilters, municipalities, statuses,
 }) {
   const mapRef = useRef(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [roadsVisible, setRoadsVisible] = useState(true);
+  const [tileState, setTileState] = useState('loading');
   const mobile = usePhoneLayout(900);
   const activeFilters = (category !== 'all' ? 1 : 0) + Object.entries(filters || {}).filter(([key,value]) => key === 'query' ? value.trim() : value !== 'all').length;
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [touchActive, setTouchActive] = useState(false);
+  const [touchActive, setTouchActive] = useState(true);
   const handleReady = useCallback((instance) => { mapRef.current = instance; }, []);
   const basemap = BASEMAPS[theme] ?? BASEMAPS.light;
   const provinceMask = useMemo(() => {
@@ -142,7 +143,7 @@ export default function ProvinceMap({
     if (!instance) return;
     if (action === 'in') instance.zoomIn();
     else if (action === 'out') instance.zoomOut();
-    else instance.flyBounds(PROVINCE.bounds, { padding: [18, 18], duration: 0.7, animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches });
+    else instance.flyToBounds(PROVINCE.bounds, { padding: [18, 18], duration: 0.7, animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches });
   }
 
   return (
@@ -151,12 +152,12 @@ export default function ProvinceMap({
         <div className="map-location">
           <span className="map-location-mark"><Crosshair size={14} /></span>
           <span className="map-location-copy">
-            <strong>{PROVINCE.name}</strong>
+            <strong>{area !== 'all' ? area : PROVINCE.name}</strong>
             <small>{area !== 'all' ? area : `${PROVINCE.region} · ${visible.length} mapped points`}</small>
           </span>
         </div>
         <div className="map-top-actions">
-          <button className="map-tool-button" type="button" aria-pressed={roadsVisible} onClick={() => setRoadsVisible((visible) => !visible)}><Layers3 size={14} />{roadsVisible ? 'Province outline' : 'Show streets'}</button>
+          <button className="map-tool-button" type="button" aria-pressed={roadsVisible} onClick={() => setRoadsVisible((visible) => !visible)}><Layers3 size={14} />{roadsVisible ? 'Hide basemap' : 'Show basemap'}</button>
           <span className="map-count"><i /> {mappedCount} reports · {visibleVolunteers.length} activities</span>
           <button className="map-tool-button" type="button" onClick={onStartReport}><Plus size={14} /> Report</button>
         </div>
@@ -185,6 +186,7 @@ export default function ProvinceMap({
           attribution={basemap.attribution}
           subdomains="abcd"
           detectRetina
+          eventHandlers={{ tileload: () => setTileState('ready'), tileerror: () => setTileState(current => current === 'ready' ? current : 'error') }}
         />}
         <Polygon
           positions={provinceMask}
@@ -255,6 +257,9 @@ export default function ProvinceMap({
         <button onClick={() => setSheetOpen(true)} aria-haspopup="dialog" aria-expanded={sheetOpen}><Layers3 size={17} />Filters{activeFilters > 0 && <b aria-label={`${activeFilters} active filters`}>{activeFilters}</b>}</button>
         <button aria-pressed={touchActive} onClick={() => setTouchActive((active) => !active)}><Crosshair size={17} />{touchActive ? 'Done moving' : 'Move map'}</button>
       </div>}
+      {!mobile && <div className="desktop-map-filter"><select aria-label="Map category" value={category} onChange={event => onCategory(event.target.value)}><option value="all">All categories</option>{categories.map(item => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select></div>}
+      {onTheme && <button className="map-style-toggle" onClick={() => onTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? 'Light map' : 'Dark map'}</button>}
+      {roadsVisible && tileState === 'error' && <p className="map-connection-note" role="status">Street tiles could not load. Province boundaries and report points are still available.</p>}
       {mobile && sheetOpen && <CategorySheet filters={filters} onFilters={onFilters} municipalities={municipalities} statuses={statuses} categories={categories} counts={counts} category={category} theme={theme} onApply={onCategory} onClose={() => setSheetOpen(false)} />}
       <div className="map-legend">
         <div className="legend-head">
