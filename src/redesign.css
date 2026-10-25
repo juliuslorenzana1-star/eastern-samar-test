@@ -287,3 +287,89 @@ button, a { touch-action: manipulation; }
   .toast, .welcome-toast, .offline-sync-toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 24px); }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+/* Typography only. Keep one scale across resident, staff, and lazy-loaded views.
+   Font-size priority prevents older component styles from restoring large text. */
+:root {
+  --type-main: clamp(28px, 2.4vw, 36px);
+  --type-page: 24px;
+  --type-section: 20px;
+  --type-card: 16px;
+  --type-body: 15px;
+  --type-button: 14px;
+  --type-label: 13px;
+  --type-secondary: 12px;
+  --type-bottom-nav: 11px;
+  --type-metric: 24px;
+}
+@media (min-width: 761px) and (max-width: 1180px) {
+  :root { --type-main: 28px; --type-page: 22px; --type-section: 18px; --type-body: 14px; }
+}
+@media (max-width: 760px), (max-width: 900px) and (max-height: 480px) {
+  :root { --type-main: 24px; --type-page: 20px; --type-section: 18px; --type-body: 14px; }
+}
+:is(.app-shell, .operations, .smart-tour-dialog, .smart-tour-coach, .emergency-drawer, .category-sheet, .report-modal, .ops-inspect) {
+  font-size: var(--type-body);
+}
+:is(.app-shell, .operations, .smart-tour-dialog, .smart-tour-coach, .emergency-drawer, .category-sheet, .report-modal, .ops-inspect) :is(p, li, dd, td, th, input, select, textarea) {
+  font-size: var(--type-body) !important;
+}
+.app-shell :is(.empty-state, .empty-state > span), .smart-preview-impact > span {
+  font-size: var(--type-body) !important;
+}
+:is(.app-shell, .operations, .smart-tour-dialog, .emergency-drawer, .category-sheet, .report-modal, .ops-inspect) h1 {
+  font-size: var(--type-page) !important;
+}
+.dashboard-heading .heading-copy h1, .operations .ops-heading h1, .smart-welcome-copy h1 {
+  font-size: var(--type-main) !important;
+}
+:is(.app-shell, .operations, .smart-tour-dialog, .emergency-drawer, .category-sheet, .report-modal, .ops-inspect) :is(h2, h3, h4) {
+  font-size: var(--type-section) !important;
+}
+.report-modal h2, .auth-modal h2, .category-sheet h2, .emergency-drawer h2,
+.ops-inspect h2, .smart-tour-feature-copy h2, .report-details-dialog .detail-title,
+.community-recognition #public-recognition-title {
+  font-size: var(--type-page) !important;
+}
+.workspace .report-title, .report-review h3, .map-stage .detail-title,
+.volunteer-opportunity h2, .volunteer-my-card h3, .volunteer-detail-banner h3,
+.operations .ops-index-concern strong, .operations .ops-feed > button strong,
+.operations .ops-geo-popup-list h3, .recognition-ranking strong, .recognition-history strong,
+.recognition-ranking h3, .hotline-card h3, .empty-state strong, .view-loading strong,
+.smart-preview-activity strong, .operations .ops-clock {
+  font-size: var(--type-card) !important;
+}
+:is(.app-shell, .operations, .smart-tour-dialog, .smart-tour-coach, .emergency-drawer, .category-sheet, .report-modal, .ops-inspect) button,
+.profile-links a, .recognition-link, .operations .ops-access > a,
+.smart-tour-dialog .smart-tour-skip, .smart-tour-dialog .smart-tour-feature-link {
+  font-size: var(--type-button) !important;
+}
+:is(.app-shell, .operations, .smart-tour-dialog, .emergency-drawer, .category-sheet, .report-modal, .ops-inspect) :is(label, legend),
+.report-modal .field-label, .volunteer-filter > span, .resident-profile .profile-preference {
+  font-size: var(--type-label) !important;
+}
+:is(.app-shell, .operations, .smart-tour-dialog, .smart-tour-coach, .emergency-drawer, .category-sheet, .report-modal, .ops-inspect) :is(small, time, dt),
+.workspace :is(.report-category, .report-place, .report-date, .status-pill, .report-priority),
+.report-modal :is(.optional-label, .field-hint, .modal-foot > span),
+.resident-profile .profile-privacy, .app-shell .site-footer,
+.app-shell :is(.modal-byline, .privacy-note, .field-hint, .optional-label, .header-account),
+.app-shell :is(.list-toolbar > span, .pulse-note, .pulse-header-meta, .detail-review-tag, .detail-category, .detail-trail),
+.volunteer-page :is(.volunteer-meta, .volunteer-status, .volunteer-category, .volunteer-card-footer),
+.operations :is(.ops-status-pill, .ops-index-place, .ops-ref, .ops-footer),
+.operations .ops-metrics > div > span, .report-steps li,
+.smart-tour-dialog :is(.smart-confirm-note, .smart-tour-promise, .smart-preview-caption, .smart-tour-footer > span) {
+  font-size: var(--type-secondary) !important;
+}
+.hero-impact dd, .pulse-copy strong, .platform-totals dd, .volunteer-metric strong,
+.recognition-metrics strong, .recognition-rank, .operations .ops-metrics strong {
+  font-size: var(--type-metric) !important;
+}
+.hero-note p { font-size: var(--type-section) !important; }
+.app-shell .mobile-bottom-nav button, .operations .ops-bottom-nav button,
+.operations .ops-bottom-nav button span {
+  font-size: var(--type-bottom-nav) !important;
+}
+:is(.app-shell, .operations, .smart-tour-dialog, .emergency-drawer, .category-sheet, .report-modal, .ops-inspect) :is(h1, h2, h3, h4),
+.workspace .report-title, .operations .ops-index-concern strong {
+  overflow-wrap: anywhere;
+}
