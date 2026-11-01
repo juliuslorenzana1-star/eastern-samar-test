@@ -324,12 +324,11 @@ export async function moderateReport({ reportId, status, priority, note, residen
     next_priority: priority,
     internal_note: note || null,
   };
-  let { error } = await supabase.rpc('moderate_report', { ...args, resident_note: residentNote || null });
-  // PGRST202 = the five-argument overload is not in this project yet, which means
-  // the review-decision migration has not been applied. Retry on the older shape so
-  // the review queue keeps working; the resident-facing reason is simply not stored.
-  if (error && error.code === 'PGRST202' && !['rejected', 'needs_more_information'].includes(status) && !residentNote?.trim()) {
-    ({ error } = await supabase.rpc('moderate_report', args));
+  const { error } = await supabase.rpc('moderate_report', { ...args, resident_note: residentNote || null });
+  // Never silently fall back to a signature that cannot persist the resident's
+  // explanation or review audit. A failed RPC must leave the review form open.
+  if (error && ['PGRST202', '42883'].includes(error.code)) {
+    throw new Error('Moderation needs a database update. No changes were saved. Contact the platform administrator.');
   }
   if (error) throw error;
 }

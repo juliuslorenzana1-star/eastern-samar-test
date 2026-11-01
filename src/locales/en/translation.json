@@ -1167,5 +1167,6 @@
   "Public submissions are paused pending privacy readiness. Authorized testing uses a separate restricted environment.": "Public submissions are paused pending privacy readiness. Authorized testing uses a separate restricted environment.",
   "Use your designated testing account.": "Use your designated testing account.",
   "This account is not authorized for this testing environment.": "This account is not authorized for this testing environment.",
-  "Testing": "Testing"
+  "Testing": "Testing",
+  "Moderation needs a database update. No changes were saved. Contact the platform administrator.": "Moderation needs a database update. No changes were saved. Contact the platform administrator."
 }

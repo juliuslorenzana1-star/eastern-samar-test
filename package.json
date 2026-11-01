@@ -16,6 +16,7 @@
     "test:public:live": "node tests/public-live-browser.mjs",
     "test": "node --test tests/*.test.mjs supabase/functions/send-email-notification/index.test.mjs",
     "test:database": "node --test tests/database.integration.mjs",
+    "test:moderation:browser": "node tests/moderation-browser.mjs",
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "lint": "oxlint",

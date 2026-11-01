@@ -199,7 +199,7 @@ test('one-time production repair upgrades the inspected legacy shape without rep
   try {
     await bootstrapDatabase(db);
     const directory=new URL('../supabase/migrations/',import.meta.url);
-    const names=(await readdir(directory)).filter(name=>name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition/.test(name)).sort();
+    const names=(await readdir(directory)).filter(name=>name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair/.test(name)).sort();
     for(const name of names)await db.exec(await readFile(new URL(name,directory),'utf8'));
     const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     await db.exec(`insert into auth.users(id) values('${owner}'); select set_config('request.jwt.claim.sub','${owner}',false);`);
@@ -223,7 +223,7 @@ test('recognition repair works on legacy schema, protects identity, ranks ties a
   try {
     await bootstrapDatabase(db);
     const directory = new URL('../supabase/migrations/',import.meta.url);
-    for (const name of (await readdir(directory)).filter(name => name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition/.test(name)).sort()) await db.exec(await readFile(new URL(name,directory),'utf8'));
+    for (const name of (await readdir(directory)).filter(name => name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair/.test(name)).sort()) await db.exec(await readFile(new URL(name,directory),'utf8'));
     const sql = await readFile(new URL('20261024183629_community_recognition.sql',directory),'utf8');
     await db.exec(sql);
     await db.exec(sql); // Additive repair is safe to retry.
@@ -274,3 +274,6 @@ test('recognition repair works on legacy schema, protects identity, ranks ties a
     assert.deepEqual(thresholds.rows[0].low,['first-community-action','active-volunteer']); assert.equal(thresholds.rows[0].high.length,5);
   } finally {await db.close();}
 });
+
+import { registerModerationRpcTests } from "./moderation-rpc.database.mjs";
+registerModerationRpcTests(bootstrapDatabase);

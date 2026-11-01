@@ -7,11 +7,12 @@ import { hasCoordinates } from '../src/lib/place.js';
 const source = await readFile(new URL('../src/lib/reports.js', import.meta.url), 'utf8');
 const insertions = [];
 const ownerQueries = [];
+const rpcCalls = [];
 let lookupError = { code: '42501' };
 let rpcError = { code: 'PGRST202' };
 let reviewColumnsMissing = false;
 globalThis.reportTestTransport = {
-  rpc: async () => ({ error: rpcError }),
+  rpc: async (name, args) => { rpcCalls.push({ name, args }); return { error: rpcError }; },
   functions: { invoke: async () => { throw new Error('Disabled optional functions must never be called'); } },
   from: (table) => {
     assert.equal(table, 'reports');
@@ -82,4 +83,18 @@ test('optional coordinates do not become phantom points at zero', () => {
   assert.equal(hasCoordinates({ latitude: null, longitude: null }), false);
   assert.equal(hasCoordinates({ latitude: '', longitude: '' }), false);
   assert.equal(hasCoordinates({ latitude: 11.6, longitude: 125.4 }), true);
+});
+
+test('moderation sends the canonical arguments once and never silently drops resident notes', async () => {
+  rpcError = { code: 'PGRST202', message: 'Could not find the function' };
+  const before = rpcCalls.length;
+  await assert.rejects(reports.moderateReport({ reportId: 'report', status: 'verified', priority: 'high', note: 'Private note', residentNote: 'Reporter explanation' }), /database update.*No changes were saved/);
+  assert.equal(rpcCalls.length, before + 1);
+  assert.deepEqual(rpcCalls.at(-1), { name: 'moderate_report', args: { target_report_id: 'report', next_status: 'verified', next_priority: 'high', internal_note: 'Private note', resident_note: 'Reporter explanation' } });
+  rpcError = null;
+  await reports.moderateReport({ reportId: 'report', status: 'rejected', priority: 'normal', residentNote: 'A reason' });
+  assert.equal(rpcCalls.at(-1).args.internal_note, null);
+  assert.equal(rpcCalls.at(-1).args.resident_note, 'A reason');
+  rpcError = { code: '42501', message: 'Moderator access is required' };
+  await assert.rejects(reports.moderateReport({ reportId: 'report', status: 'approved', priority: 'normal' }), error => error.code === '42501');
 });
