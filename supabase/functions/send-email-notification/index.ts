@@ -1,3 +1,5 @@
+import { readSmallJson } from '../_shared/request.ts';
+
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -12,13 +14,14 @@ Deno.serve(async (request: Request) => {
     const authorization = request.headers.get('Authorization');
     if (!url || !anon || !service) return reply({ error: 'service_unavailable' }, 503);
     if (!authorization?.startsWith('Bearer ')) return reply({ error: 'unauthorized' }, 401);
+    if (Deno.env.get('ENABLE_EMAIL_NOTIFICATIONS') !== 'true') return reply({ ok: false, skipped: true, reason: 'email_not_configured' });
+    let body;
+    try { body = await readSmallJson(request) as { type?: unknown; report_id?: unknown; opportunity_id?: unknown }; } catch { return reply({ error: 'invalid_request' }, 400); }
     const auth = await fetch(url + '/auth/v1/user', { headers: { apikey: anon, Authorization: authorization }, signal: AbortSignal.timeout(10000) });
     if (!auth.ok) return reply({ error: 'unauthorized' }, 401);
     const user = await auth.json();
-    let body;
-    try { body = await request.json(); } catch { return reply({ error: 'invalid_request' }, 400); }
     const type = body?.type;
-    if (!['report_submission', 'volunteer_registration'].includes(type)) return reply({ error: 'invalid_request' }, 400);
+    if (typeof type !== 'string' || !['report_submission', 'volunteer_registration'].includes(type)) return reply({ error: 'invalid_request' }, 400);
     const id = type === 'report_submission' ? body.report_id : body.opportunity_id;
     if (typeof id !== 'string' || !uuid.test(id)) return reply({ error: 'invalid_reference' }, 400);
     async function read(table: string, query: string) {
@@ -60,6 +63,9 @@ Deno.serve(async (request: Request) => {
     const status = await claim.json();
     if (status === 'rate_limited') return reply({ error: 'rate_limited' }, 429);
     if (status !== 'claimed') return reply({ ok: false, duplicate: true, status });
+    const allowance = await fetch(url + '/rest/v1/rpc/claim_external_api_usage', { method: 'POST', headers: adminHeaders, body: JSON.stringify({ p_service: 'email', p_user_id: user.id }), signal: AbortSignal.timeout(10000) });
+    const budget = allowance.ok ? await allowance.json() : 'disabled';
+    if (budget !== 'claimed') return reply({ ok: false, skipped: true, reason: budget === 'rate_limited' ? 'rate_limited' : 'email_not_configured' }, budget === 'rate_limited' ? 429 : 200);
     const html = '<div style="font-family:Arial,sans-serif;background:#faf9f3;color:#243b34;padding:28px;border-top:3px solid #a17a35"><small>EASTERN SAMAR COMMUNITY ACTION MAP</small><h1>' + escape(title) + '</h1><p>Hello ' + escape(profiles[0]?.display_name || 'Community member') + ',</p><dl>' + details.map(([label, value]) => '<dt><strong>' + escape(label) + '</strong></dt><dd style="margin:4px 0 16px">' + escape(value) + '</dd>').join('') + '</dl><p>' + escape(steps) + '</p><a href="' + escape(link.href) + '">View in the community platform</a></div>';
     let state = 'uncertain', providerId = null;
     try {

@@ -4,15 +4,16 @@ import assert from 'node:assert/strict';
 let handler;
 const originalDeno=globalThis.Deno,originalFetch=globalThis.fetch;
 const reportId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const env={SUPABASE_URL:'https://screening-unit.invalid',SUPABASE_ANON_KEY:'unit-public',SUPABASE_SERVICE_ROLE_KEY:'unit-server'};
+const env={SUPABASE_URL:'https://screening-unit.invalid',SUPABASE_ANON_KEY:'unit-public',SUPABASE_SERVICE_ROLE_KEY:'unit-server',ENABLE_AI_SCREENING:'true'};
 globalThis.Deno={env:{get:name=>env[name]},serve:callback=>{handler=callback;}};
 await import('../supabase/functions/analyze-report/index.ts');
 after(()=>{globalThis.Deno=originalDeno;globalThis.fetch=originalFetch;});
-function transport({owner='resident',flags=[]}={}) {
+function transport({owner='resident',flags=[],budget='claimed'}={}) {
   const writes=[];
   globalThis.fetch=async(input,options={})=>{
     const url=new URL(input),method=options.method || 'GET';
-    if(url.hostname==='provider-unit.invalid')return Response.json({choices:[{message:{content:JSON.stringify({flags})}}]});
+    if(url.hostname==='provider-unit.invalid'){writes.push({provider:true});return Response.json({choices:[{message:{content:JSON.stringify({flags})}}]});}
+    if(url.pathname==='/rest/v1/rpc/claim_external_api_usage')return Response.json(budget);
     if(url.pathname==='/auth/v1/user')return Response.json({id:'resident'});
     if(url.pathname==='/rest/v1/reports')return Response.json([{id:reportId,reporter_id:owner,title:'Coastal concern',description:'Debris needs review.',status:'pending_review',is_public:false}]);
     if(method==='GET')return Response.json([]);
@@ -35,8 +36,23 @@ test('configured screening stores advisory flags and invalid provider results fa
   Object.assign(env,{AI_API_URL:'https://provider-unit.invalid/',AI_API_KEY:'unit-provider',AI_MODEL:'unit-model'});
   const writes=transport({flags:[{type:'spam',confidence:.8,explanation:'Repeated promotional text.'}]});
   assert.deepEqual(await (await handler(request())).json(),{status:'completed',flagCount:1});
-  assert.equal(writes.find(write=>write.path.endsWith('/ai_review_flags')).body[0].flag_type,'spam');
+  assert.equal(writes.find(write=>write.path?.endsWith('/ai_review_flags')).body[0].flag_type,'spam');
   transport({flags:[{type:'spam',confidence:2,explanation:'Invalid result'}]});
   assert.deepEqual(await (await handler(request())).json(),{status:'failed'});
+  delete env.AI_API_URL;delete env.AI_API_KEY;delete env.AI_MODEL;
+});
+
+test('AI requires explicit enablement and an approved database allowance',async()=>{
+  Object.assign(env,{AI_API_URL:'https://provider-unit.invalid/',AI_API_KEY:'unit-provider',AI_MODEL:'unit-model'});
+  delete env.ENABLE_AI_SCREENING;
+  const disabled=transport();
+  assert.deepEqual(await (await handler(request())).json(),{status:'unavailable'});
+  assert.equal(disabled.length,0);
+  env.ENABLE_AI_SCREENING='true';
+  for(const budget of ['disabled','rate_limited']) {
+    const writes=transport({budget});
+    assert.deepEqual(await (await handler(request())).json(),{status:'unavailable'});
+    assert.equal(writes.some(item=>item.provider),false);
+  }
   delete env.AI_API_URL;delete env.AI_API_KEY;delete env.AI_MODEL;
 });

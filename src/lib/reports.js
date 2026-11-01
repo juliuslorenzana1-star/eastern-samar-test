@@ -1,6 +1,8 @@
 import { supabase } from './supabase.js';
+import { requirePersonalDataCollection } from './collection-policy.js';
 import { validateReport } from './report-validation.js';
 import { categoryLabel } from './categories.js';
+import { t } from '../i18n/config.js';
 
 const reportColumns = [
   'id',
@@ -46,7 +48,7 @@ const statusLabels = {
 };
 
 export function formatStatus(status) {
-  return statusLabels[status] ?? status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return t(statusLabels[status] ?? String(status || 'Unknown').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()));
 }
 
 export function isPubliclyVisible(report) {
@@ -159,6 +161,7 @@ export async function fetchProfile(userId) {
 }
 
 export async function sendEmailNotification(payload) {
+  if (import.meta.env?.VITE_ENABLE_EMAIL_NOTIFICATIONS !== 'true') return { ok: false, skipped: true, reason: 'email_disabled' };
   if (!supabase) return { ok: false, skipped: true, reason: 'supabase_unavailable' };
   try {
     const { data, error } = await supabase.functions.invoke('send-email-notification', {
@@ -224,6 +227,7 @@ export async function fetchAIReview(reportId) {
 }
 
 export async function createReport(values, userId) {
+  requirePersonalDataCollection();
   if (!supabase || !userId) throw new Error('Sign in before submitting a report.');
   values = validateReport(values);
   const evidenceType = values.evidence
@@ -295,6 +299,10 @@ export async function createReport(values, userId) {
   }
 
   try {
+    if (import.meta.env?.VITE_ENABLE_AI_SCREENING !== 'true') {
+      warnings.push('Automated screening is unavailable; your report remains pending human review.');
+      return { report, warning: warnings.join(' '), warningMessages: warnings };
+    }
     const { data: screening, error: screeningError } = await supabase.functions.invoke('analyze-report', {
       body: { reportId: report.id },
     });
@@ -305,7 +313,7 @@ export async function createReport(values, userId) {
     warnings.push('Automated screening is unavailable; your report remains pending human review.');
   }
 
-  return { report, warning: warnings.join(' ') };
+  return { report, warning: warnings.join(' '), warningMessages: warnings };
 }
 
 export async function moderateReport({ reportId, status, priority, note, residentNote }) {

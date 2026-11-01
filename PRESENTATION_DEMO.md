@@ -1,3 +1,7 @@
+# Current demonstration entry — 1 November 2026
+
+Use `npm.cmd run demo:presentation` and its isolated browser window for fictional rehearsal. No real citizen details, public signup or public personal-data collection are permitted pending [privacy release gates](PRIVACY_RELEASE_GATES.md). The current local film and assets are described in [the production package](VIDEO_PRODUCTION_PACKAGE.md). Older staging journeys below are operational reference; do not execute a migration or enable public collection without separate approval.
+
 # Eastern Samar Community Action Map — presentation guide
 
 ## Readiness and honest framing

@@ -18,12 +18,13 @@ async function loadReports(responses) {
       },
     }) }) }),
   };
-  const injected = source.replace("'./categories.js'", JSON.stringify(new URL('../src/lib/categories.js', import.meta.url).href)).replace("'./report-validation.js'", JSON.stringify(new URL('../src/lib/report-validation.js', import.meta.url).href)).replace(
+  const injected = source.replace("'../i18n/config.js'", JSON.stringify(new URL('../src/i18n/config.js', import.meta.url).href)).replace("'./categories.js'", JSON.stringify(new URL('../src/lib/categories.js', import.meta.url).href)).replace("'./report-validation.js'", JSON.stringify(new URL('../src/lib/report-validation.js', import.meta.url).href)).replace(
     "import { supabase } from './supabase.js';",
     `const supabase = globalThis[${JSON.stringify(transportKey)}];`,
   );
   try {
-    const reports = await import('data:text/javascript;base64,' + Buffer.from(injected).toString('base64'));
+    const withPolicy = injected.replace("'./collection-policy.js'", JSON.stringify(new URL('../src/lib/collection-policy.js', import.meta.url).href));
+    const reports = await import('data:text/javascript;base64,' + Buffer.from(withPolicy).toString('base64'));
     return { reports, calls };
   } finally {
     delete globalThis[transportKey];

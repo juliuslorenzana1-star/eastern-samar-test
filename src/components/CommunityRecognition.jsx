@@ -1,4 +1,6 @@
-﻿import { useEffect, useState } from 'react';
+import { t, locale } from '../i18n/config.js';
+import { useTranslation } from 'react-i18next';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { updateProfileLeaderboardVisibility } from '../lib/volunteers.js';
 
@@ -16,9 +18,11 @@ async function readRecognition(name) {
   return data;
 }
 function Badges({ earned = [] }) {
-  return earned.length ? <ul className="recognition-badges">{earned.filter(id => BADGES[id]).map(id => <li key={id}><strong>{BADGES[id][0]}</strong><small>{BADGES[id][1]}</small></li>)}</ul> : <p>No milestones earned yet. Your first completed activity starts your journey.</p>;
+  useTranslation();
+  return earned.length ? <ul className="recognition-badges">{earned.filter(id => BADGES[id]).map(id => <li key={id}><strong>{t(BADGES[id][0])}</strong><small>{t(BADGES[id][1])}</small></li>)}</ul> : <p>{t("No milestones earned yet. Your first completed activity starts your journey.")}</p>;
 }
 function PersonalRecognition({ onUpdated }) {
+  useTranslation();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [alias, setAlias] = useState('');
@@ -41,22 +45,23 @@ function PersonalRecognition({ onUpdated }) {
       setData(next); onUpdated(); setMessage('Your recognition privacy settings were saved.');
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
-  return <section className="recognition-personal" aria-labelledby="my-recognition-title"><h2 id="my-recognition-title">My contribution</h2>
-    {error && <div role="alert"><p>{error}</p><button className="outline-button" onClick={() => setRetry(n => n + 1)}>Try again</button></div>}
-    {!data && !error && <p role="status">Loading your verified contribution…</p>}
-    {data && <><div className="recognition-metrics"><p><strong>{Number(data.verified_hours)}</strong> verified hours</p><p><strong>{Number(data.completed_activities)}</strong> completed activities</p><p><strong>{data.rank ? `#${data.rank}` : 'Private / unranked'}</strong> public position</p></div>
-      <h3>Earned milestones</h3><Badges earned={data.badges} />
-      <form onSubmit={save} className="recognition-privacy"><h3>Public recognition is your choice</h3><p>Your contribution stays private until you opt in with a public alias. You can hide your entry at any time without losing your records.</p>
-        <label>Public alias<input value={alias} maxLength={80} onChange={e => setAlias(e.target.value)} disabled={busy} autoComplete="off" /></label>
-        <label className="recognition-checkbox"><input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} disabled={busy} />Show my alias and verified contribution on the public leaderboard</label>
-        <button className="primary-button" disabled={busy || (visible && !alias.trim())}>{busy ? 'Saving…' : 'Save privacy settings'}</button><p role="status">{message}</p>
+  return <section className="recognition-personal" aria-labelledby="my-recognition-title"><h2 id="my-recognition-title">{t("My contribution")}</h2>
+    {error && <div role="alert"><p>{t(error)}</p><button className="outline-button" onClick={() => setRetry(n => n + 1)}>{t("Try again")}</button></div>}
+    {!data && !error && <p role="status">{t("Loading your verified contribution…")}</p>}
+    {data && <><div className="recognition-metrics"><p><strong>{Number(data.verified_hours)}</strong>  {t("verified hours")}</p><p><strong>{Number(data.completed_activities)}</strong>  {t("completed activities")}</p><p><strong>{data.rank ? `#${data.rank}` : t("Private / unranked")}</strong>  {t("public position")}</p></div>
+      <h3>{t("Earned milestones")}</h3><Badges earned={data.badges} />
+      <form onSubmit={save} className="recognition-privacy"><h3>{t("Public recognition is your choice")}</h3><p>{t("Your contribution stays private until you opt in with a public alias. You can hide your entry at any time without losing your records.")}</p>
+        <label>{t("Public alias")}<input value={alias} maxLength={80} onChange={e => setAlias(e.target.value)} disabled={busy} autoComplete="off" /></label>
+        <label className="recognition-checkbox"><input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} disabled={busy} />{t("Show my alias and verified contribution on the public leaderboard")}</label>
+        <button className="primary-button" disabled={busy || (visible && !alias.trim())}>{busy ? t("Saving…") : t("Save privacy settings")}</button><p role="status">{t(message)}</p>
       </form>
-      <h3>Verified contribution history</h3><p>Latest 100 verified records. Totals include all verified service.</p>
-      {data.history?.length ? <ul className="recognition-history">{data.history.map(item => <li key={item.id}><strong>{item.title}</strong><span>{item.municipality || 'Eastern Samar'} · {item.status} · {Number(item.hours)} hours</span><small>{item.completed_at ? new Date(item.completed_at).toLocaleDateString('en-PH') : 'Date not recorded'}</small></li>)}</ul> : <p>No verified service yet. Staff-confirmed attendance and completed actions will appear here.</p>}
+      <h3>{t("Verified contribution history")}</h3><p>{t("Latest 100 verified records. Totals include all verified service.")}</p>
+      {data.history?.length ? <ul className="recognition-history">{data.history.map(item => <li key={item.id}><strong>{item.title}</strong><span>{item.municipality || t("Eastern Samar")} · {t(item.status)} · {Number(item.hours)}  {t("hours")}</span><small>{item.completed_at ? new Date(item.completed_at).toLocaleDateString(locale()) : t("Date not recorded")}</small></li>)}</ul> : <p>{t("No verified service yet. Staff-confirmed attendance and completed actions will appear here.")}</p>}
     </>}
   </section>;
 }
 export default function CommunityRecognition({ userId, onBack, onSignIn }) {
+  useTranslation();
   const [entries, setEntries] = useState(null);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -65,12 +70,12 @@ export default function CommunityRecognition({ userId, onBack, onSignIn }) {
     readRecognition('get_community_recognition').then(data => { if (active) { setEntries(data || []); setError(''); } }).catch(e => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [retry]);
-  return <div className="community-recognition"><button className="outline-button" onClick={onBack}>Back to volunteer opportunities</button>
-    <section className="recognition-public" aria-labelledby="public-recognition-title"><h2 id="public-recognition-title">Estehanon Community Leaders</h2><p>Celebrating the time our neighbors give to Eastern Samar. Only staff-verified service counts. Public participation is optional.</p>
-      <p>Top 100 public contributors, ranked by verified hours. Equal hours share the same rank. Completed activities count separately.</p>
-      {error ? <div role="alert"><p>We could not load community recognition. {error}</p><button className="outline-button" onClick={() => setRetry(n => n + 1)}>Try again</button></div> : entries === null ? <p role="status">Loading community recognition…</p> : entries.length ? <ol className="recognition-ranking">{entries.map((entry,index) => <li key={`${entry.public_alias}-${index}`}><span className="recognition-rank">#{entry.rank}</span><div><h3>{entry.public_alias}</h3><p>{Number(entry.verified_hours)} verified hours · {Number(entry.completed_activities)} completed activities</p><Badges earned={entry.badges} /></div></li>)}</ol> : <div className="recognition-empty"><h3>Every contribution starts somewhere.</h3><p>No public contributors yet. As volunteers earn verified hours and choose to share them, their service will be celebrated here.</p></div>}
+  return <div className="community-recognition"><button className="outline-button" onClick={onBack}>{t("Back to volunteer opportunities")}</button>
+    <section className="recognition-public" aria-labelledby="public-recognition-title"><h2 id="public-recognition-title">{t("Estehanon Community Leaders")}</h2><p>{t("Celebrating the time our neighbors give to Eastern Samar. Only staff-verified service counts. Public participation is optional.")}</p>
+      <p>{t("Top 100 public contributors, ranked by verified hours. Equal hours share the same rank. Completed activities count separately.")}</p>
+      {error ? <div role="alert"><p>{t("We could not load community recognition.")} {t(error)}</p><button className="outline-button" onClick={() => setRetry(n => n + 1)}>{t("Try again")}</button></div> : entries === null ? <p role="status">{t("Loading community recognition…")}</p> : entries.length ? <ol className="recognition-ranking">{entries.map((entry,index) => <li key={`${entry.public_alias}-${index}`}><span className="recognition-rank">#{entry.rank}</span><div><h3>{entry.public_alias}</h3><p>{Number(entry.verified_hours)}  {t("verified hours ·")} {Number(entry.completed_activities)}  {t("completed activities")}</p><Badges earned={entry.badges} /></div></li>)}</ol> : <div className="recognition-empty"><h3>{t("Every contribution starts somewhere.")}</h3><p>{t("No public contributors yet. As volunteers earn verified hours and choose to share them, their service will be celebrated here.")}</p></div>}
     </section>
-    {userId ? <PersonalRecognition key={userId} onUpdated={() => setRetry(n => n + 1)} /> : <section className="recognition-personal"><h2>Your community journey</h2><p>Sign in to see your private service history, earned milestones and recognition settings.</p><button className="primary-button" onClick={onSignIn}>Sign in to view my contribution</button></section>}
-    <details className="recognition-criteria"><summary>How recognition milestones are earned</summary><ul>{Object.entries(BADGES).map(([id,[name,criteria]]) => <li key={id}><strong>{name}</strong> — {criteria}</li>)}</ul><p>Milestones are calculated from verified records. Registered, cancelled and no-show activities do not count.</p></details>
+    {userId ? <PersonalRecognition key={userId} onUpdated={() => setRetry(n => n + 1)} /> : <section className="recognition-personal"><h2>{t("Your community journey")}</h2><p>{t("Sign in to see your private service history, earned milestones and recognition settings.")}</p><button className="primary-button" onClick={onSignIn}>{t("Sign in to view my contribution")}</button></section>}
+    <details className="recognition-criteria"><summary>{t("How recognition milestones are earned")}</summary><ul>{Object.entries(BADGES).map(([id,[name,criteria]]) => <li key={id}><strong>{t(name)}</strong> — {t(criteria)}</li>)}</ul><p>{t("Milestones are calculated from verified records. Registered, cancelled and no-show activities do not count.")}</p></details>
   </div>;
 }

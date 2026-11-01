@@ -1,3 +1,5 @@
+import { t } from '../i18n/config.js';
+import { useTranslation } from 'react-i18next';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { themeModes } from '../lib/theme.js';
 import usePhoneLayout from '../lib/useMediaQuery.js';
@@ -8,10 +10,11 @@ const icons = { light: Sun, dark: Moon, system: Monitor };
 // One control for the three modes the platform supports. The stored value is
 // the resident's choice ("system" keeps following the OS), not the resolved look.
 export default function ThemeToggle({ mode, onChange }) {
+  useTranslation();
   const mobile = usePhoneLayout();
-  if (mobile) return <select className="mobile-theme-select" value={mode} onChange={(event) => onChange(event.target.value)} aria-label="Colour theme">{themeModes.map((option) => <option key={option} value={option}>{labels[option]}</option>)}</select>;
+  if (mobile) return <select className="mobile-theme-select" value={mode} onChange={(event) => onChange(event.target.value)} aria-label={t("Colour theme")}>{themeModes.map((option) => <option key={option} value={option}>{t(labels[option])}</option>)}</select>;
   return (
-    <div className="theme-toggle" role="radiogroup" aria-label="Colour theme">
+    <div className="theme-toggle" role="radiogroup" aria-label={t("Colour theme")}>
       {themeModes.map((option) => {
         const Icon = icons[option];
         const active = mode === option;
@@ -22,7 +25,7 @@ export default function ThemeToggle({ mode, onChange }) {
             role="radio"
             aria-checked={active}
             tabIndex={active ? 0 : -1}
-            title={`${labels[option]} theme`}
+            title={t("{{value1}} theme", { value1: t(labels[option]) })}
             className={`theme-option${active ? ' is-active' : ''}`}
             onClick={() => onChange(option)}
             onKeyDown={(event) => {
@@ -40,7 +43,7 @@ export default function ThemeToggle({ mode, onChange }) {
             }}
           >
             <Icon size={13} />
-            <span>{labels[option]}</span>
+            <span>{t(labels[option])}</span>
           </button>
         );
       })}

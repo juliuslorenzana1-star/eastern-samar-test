@@ -2,12 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 let handler;
-const env = { SUPABASE_URL: 'https://database.test', SUPABASE_ANON_KEY: 'test-anon', SUPABASE_SERVICE_ROLE_KEY: 'test-service', RESEND_API_KEY: 'test-resend', EMAIL_FROM_ADDRESS: 'Civic <mail@example.test>', APP_URL: 'https://app.example.test' };
+const env = { SUPABASE_URL: 'https://database.test', SUPABASE_ANON_KEY: 'test-anon', SUPABASE_SERVICE_ROLE_KEY: 'test-service', RESEND_API_KEY: 'test-resend', EMAIL_FROM_ADDRESS: 'Civic <mail@example.test>', APP_URL: 'https://app.example.test', ENABLE_EMAIL_NOTIFICATIONS: 'true' };
 globalThis.Deno = { env: { get: (key) => env[key] }, serve: (callback) => { handler = callback; } };
 await import('./index.ts');
 const reference = '11111111-1111-4111-8111-111111111111';
 const calls = [];
-let claimStatus = 'claimed', owned = true, providerOk = true;
+let claimStatus = 'claimed', owned = true, providerOk = true, budget = 'claimed';
 globalThis.fetch = async (url, options = {}) => {
   calls.push({ url, options });
   const json = (value, status = 200) => new Response(JSON.stringify(value), { status });
@@ -17,6 +17,7 @@ globalThis.fetch = async (url, options = {}) => {
   if (url.includes('/report_categories?')) return json([{ name: 'Environment' }]);
   if (url.includes('/volunteer_registrations?')) return json([{ id: reference, status: 'registered', opportunity: { title: 'Coastal activity', municipality: 'Guiuan', tasks: [], what_to_bring: [] } }]);
   if (url.endsWith('/rpc/claim_email_notification')) return json(claimStatus);
+  if (url.endsWith('/rpc/claim_external_api_usage')) return json(budget);
   if (url === 'https://api.resend.com/emails') return json(providerOk ? { id: 'provider-reference' } : { error: 'sensitive provider error' }, providerOk ? 200 : 500);
   if (url.includes('/email_notification_log?')) return new Response(null, { status: 204 });
   throw new Error('Unexpected request');
@@ -25,6 +26,19 @@ function request(body, authenticated = true) {
   return new Request('https://function.test', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(authenticated ? { Authorization: 'Bearer test-session' } : {}) }, body: JSON.stringify(body) });
 }
 const payload = { type: 'report_submission', report_id: reference, report_title: 'UNTRUSTED INPUT' };
+
+test('email defaults off and refuses an exhausted or unapproved database allowance', async () => {
+  delete env.ENABLE_EMAIL_NOTIFICATIONS; calls.length=0;
+  assert.equal((await (await handler(request(payload))).json()).skipped,true);
+  assert.equal(calls.length,0);
+  env.ENABLE_EMAIL_NOTIFICATIONS='true';
+  for(const state of ['disabled','rate_limited']) {
+    budget=state; calls.length=0;
+    assert.equal((await (await handler(request(payload))).json()).skipped,true);
+    assert.equal(calls.some(({url})=>url.includes('resend.com')),false);
+  }
+  budget='claimed';
+});
 test('requires authentication', async () => {
   calls.length = 0;
   assert.equal((await handler(request(payload, false))).status, 401);

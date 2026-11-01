@@ -1,3 +1,7 @@
+# Current release gate — 1 November 2026
+
+**Restricted fictional demonstration only. Do not deploy or resume public personal-data collection.** The owner requires a verified privacy contact, confirmed responsible controller/operator and approved retention/deletion schedule. No incomplete notice is published. See [privacy gates](PRIVACY_RELEASE_GATES.md) and [current verification](PRESENTATION_READINESS_FINAL.md). Production collection has not been disabled or verified disabled by the current local changes. Historical deployment evidence below is retained as history, not current release approval.
+
 # Deployment readiness — 25 October 2026 (Philippine time)
 
 ## Current disposition

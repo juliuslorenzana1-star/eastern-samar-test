@@ -1,6 +1,8 @@
 import { supabase } from './supabase.js';
+import { requirePersonalDataCollection } from './collection-policy.js';
 
 export async function sendEmailNotification(payload) {
+  if (import.meta.env?.VITE_ENABLE_EMAIL_NOTIFICATIONS !== 'true') return { ok: false, skipped: true, reason: 'email_disabled' };
   if (!supabase) return { ok: false, skipped: true, reason: 'supabase_unavailable' };
   try {
     const { data, error } = await supabase.functions.invoke('send-email-notification', {
@@ -90,6 +92,7 @@ export async function fetchVolunteerPrivacy(userId) {
 }
 
 export async function updateProfileLeaderboardVisibility(showOnLeaderboard, publicAlias) {
+  requirePersonalDataCollection();
   if (!supabase) throw new Error('The shared database is not configured.');
   const { data: user } = await supabase.auth.getUser();
   if (!user.user) throw new Error('Sign in to update your public visibility.');
@@ -108,6 +111,7 @@ export async function updateProfileLeaderboardVisibility(showOnLeaderboard, publ
 }
 
 export async function registerForVolunteerOpportunity(opportunityId) {
+  requirePersonalDataCollection();
   if (!supabase) throw new Error('The shared database is not configured.');
   const { error } = await supabase.rpc('join_volunteer_opportunity', { p_opportunity_id: opportunityId });
   if (error) throw error;

@@ -373,3 +373,13 @@ button, a { touch-action: manipulation; }
 .workspace .report-title, .operations .ops-index-concern strong {
   overflow-wrap: anywhere;
 }
+/* Privacy release gate: visible without changing navigation or map controls. */
+.collection-pause-banner { margin: 8px 0; padding: 12px 16px; border: 1px solid #526765; border-radius: 8px; color: #254a46; background: #f5faf7; font-size: .85rem; line-height: 1.5; }
+.form-error { color: #9b2920; }
+:root[data-theme="dark"] .collection-pause-banner { color: #ccece3; background: #102c30; border-color: #7ab5a5; }
+:root[data-theme="dark"] .form-error { color: #ffb5ab; }
+:root:not([data-theme="dark"]) .report-modal .eyebrow,
+:root:not([data-theme="dark"]) .report-modal .modal-foot > span,
+:root:not([data-theme="dark"]) .app-shell .list-toolbar > span,
+:root:not([data-theme="dark"]) .app-shell .footer-link { color: #35584b; }
+.testing-environment-label { margin: 4px 24px; color: var(--muted); font-size: .75rem; text-align: right; }

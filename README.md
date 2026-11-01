@@ -1,3 +1,19 @@
+# Restricted functional testing
+
+Use `npm.cmd run staging` for genuine Supabase-backed testing after a separate staging project and designated accounts are configured. This path uses the normal interface and a discreet testing label; it does not install presentation fixtures or fake successful actions. See [staging setup and launch checklist](STAGING_TESTING.md).
+
+The staging backend is not yet provisioned. The approved $0/month project creation was rejected by Supabase because the account already has two active free projects; no live staging workflow has been verified. Existing application projects are blocked as staging targets, and public personal-data collection remains paused. AI/email functions remain disabled. `npm.cmd run test:staging` fails closed until the restricted backend is configured.
+
+Earlier presentation scripts below remain historical rehearsal tools and are not the functional testing entry point.
+
+# Presentation readiness — November 2026
+
+Current disposition: **restricted fictional demonstration only; public personal-data collection is a release blocker**. See [privacy gates](PRIVACY_RELEASE_GATES.md), [current audit](PRESENTATION_READINESS_AUDIT.md), [final verification](PRESENTATION_READINESS_FINAL.md) and [video production package](VIDEO_PRODUCTION_PACKAGE.md). These current gate decisions take precedence over older launch instructions below.
+
+`npm.cmd run demo:presentation` opens an isolated Edge window with fictional in-memory records. Use that window and its demo role selector. `npm.cmd run test:presentation` verifies the full rehearsal; `npm.cmd run video:record` records the seven-scene 2:30 walkthrough. Generated media are in ignored `presentation-output.local/`.
+
+Default release builds pause account form requests, report creation, volunteer joining and public alias updates. Optional email/AI client calls independently default off. These are client safeguards; production Auth/RLS restrictions and deployment require separate approval. Do not enable collection or deploy to meet a deadline before privacy requirements are satisfied. No billing status is inferred.
+
 # Eastern Samar Community Action Map
 
 Eastern Samar Community Action Map is a React/Vite community reporting app with a Leaflet map, Supabase Auth, Postgres-backed reports, and a private evidence bucket. No incident or project sample data is seeded. Public reports remain hidden until an authorized moderator publishes them.
@@ -31,6 +47,8 @@ Run `npm run test:onboarding` for completion and eligibility checks. For local b
 
 ## Backend
 
+The interface supports English, Filipino, and Waray-Waray — Boronganon through the globe language selector. See [language behavior, verification, and native-speaker review notes](LANGUAGE_MODE.md). Preferences stay on the device; report content and database identifiers are preserved.
+
 The Supabase migrations define resident/moderator/admin roles, report categories and workflow, private exact locations and evidence, moderation history/notes, AI-review flags and runs, possible duplicate links, community projects, volunteer opportunities, signups, notifications, RLS policies, and the private `report-evidence` storage bucket. The initial platform migration has been applied to the `eastern-samar-test` Supabase project; apply newer migrations before deploying matching frontend/function code.
 
 The frontend uses `@supabase/supabase-js` for authentication and RLS-protected database/storage access. Local setup: copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. The local `.env.local` is gitignored. GitHub Actions needs repository variables with those same names for Pages builds.
@@ -39,7 +57,7 @@ New users register as residents and must confirm their email. The first administ
 
 ### Optional AI screening
 
-`supabase/functions/analyze-report/index.ts` is an authenticated Supabase Edge Function. Deploy it after applying the AI screening migration. Configure `AI_API_URL` (an HTTPS OpenAI-compatible Chat Completions endpoint), `AI_API_KEY`, and `AI_MODEL` as Supabase Function secrets, then deploy `analyze-report`. Do not add these values to `.env.local`, `VITE_*` variables, or the frontend build.
+`supabase/functions/analyze-report/index.ts` is optional and remains undeployed. AI and email activation require explicit owner approval. The handlers default off: AI requires `ENABLE_AI_SCREENING=true`, and email requires `ENABLE_EMAIL_NOTIFICATIONS=true`, plus separately approved database switches and usage allowances. Provider credentials alone do not enable requests. See [security limits and activation requirements](SECURITY_GUARDS.md). Never add provider secrets to `.env.local`, `VITE_*` variables, or the frontend build.
 
 The function verifies the signed-in reporter owns a still-pending report and sends only its title, description, and category to the configured provider. It stores advisory flags/status for authorized moderators. Missing provider configuration or a provider failure does not block submission; the report remains `pending_review` and unpublished. AI output never approves, verifies, or publishes a report.
 

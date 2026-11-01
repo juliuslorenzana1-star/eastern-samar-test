@@ -1,3 +1,5 @@
+import { readSmallJson } from '../_shared/request.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -119,10 +121,11 @@ Deno.serve(async (request) => {
   const authorization = request.headers.get('Authorization');
   if (!projectUrl || !anonKey || !serviceKey) return respond({ error: 'service_unavailable' }, 503);
   if (!authorization?.startsWith('Bearer ')) return respond({ error: 'unauthorized' }, 401);
+  if (Deno.env.get('ENABLE_AI_SCREENING') !== 'true') return respond({ status: 'unavailable' });
 
   let body;
   try {
-    body = await request.json();
+    body = await readSmallJson(request) as { reportId?: unknown };
   } catch {
     return respond({ error: 'invalid_request' }, 400);
   }
@@ -175,6 +178,16 @@ Deno.serve(async (request) => {
       return respond({ status: currentRun?.status ?? 'pending' });
     }
     try {
+      // Fail closed if the migration, approval switch, or allowance is absent.
+      const allowance = await fetch(`${projectUrl}/rest/v1/rpc/claim_external_api_usage`, {
+        method: 'POST', headers: serviceHeaders(serviceKey, true),
+        body: JSON.stringify({ p_service: 'ai', p_user_id: user.id }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!allowance.ok || await allowance.json() !== 'claimed') {
+        await writeRun(projectUrl, serviceKey, reportId, 'unavailable', modelName);
+        return respond({ status: 'unavailable' });
+      }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
       let providerResponse;

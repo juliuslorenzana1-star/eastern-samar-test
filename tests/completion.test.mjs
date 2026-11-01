@@ -13,6 +13,9 @@ test('build environment rejects secret Supabase credentials before bundling',()=
   const token='header.'+Buffer.from(JSON.stringify({role:'service_role'})).toString('base64url')+'.signature';
   assert.throws(()=>assertSafeClientEnv({VITE_SUPABASE_ANON_KEY:token}),/anon role/);
   assert.doesNotThrow(()=>assertSafeClientEnv({VITE_SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test'}));
+  for(const env of [{VITE_OPENAI_API_KEY:'test'},{VITE_RESEND_API_KEY:'test'},{VITE_UNRELATED:'sk-proj-example-private'},{VITE_AI_API_KEY:'test'}]) {
+    assert.throws(()=>assertSafeClientEnv(env),/Secret credentials/);
+  }
 });
 test('all ten report categories validate; malformed submissions fail before transport',()=>{
   for(const category of CATEGORY_SLUGS) assert.equal(validateReport({...valid,category}).category,category);

@@ -6,7 +6,8 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     env:
-      VITE_SUPABASE_URL: https://quality-fixture.supabase.co
+      VITE_APP_ENVIRONMENT: fixtures
+      VITE_SUPABASE_URL: https://qa-fixtures.supabase.co
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_isolated_quality_fixture
       BROWSER_CHANNEL: chromium
     steps:
@@ -17,6 +18,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npm run i18n:check
       - run: npm run typecheck:functions
       - run: npm test
       - run: npm run test:database

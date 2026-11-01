@@ -1,3 +1,5 @@
+import { t } from '../i18n/config.js';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import boundary from '../assets/eastern-samar-boundary.json';
@@ -28,6 +30,7 @@ function shouldPlay() {
 }
 
 export default function CinematicEntry({ children }) {
+  useTranslation();
   const [playing, setPlaying] = useState(shouldPlay);
   const skipRef = useRef(null);
   const appRef = useRef(null);
@@ -56,7 +59,7 @@ export default function CinematicEntry({ children }) {
       if (event.key === 'Tab') { event.preventDefault(); skipRef.current?.focus(); }
     }}>
       <div className="entry-graticule" aria-hidden="true" />
-      <header className="entry-topline"><span>PH / EASTERN VISAYAS</span><span>A COMMUNITY ATLAS</span></header>
+      <header className="entry-topline"><span>{t("PH / EASTERN VISAYAS")}</span><span>{t("A COMMUNITY ATLAS")}</span></header>
       <div className="entry-composition">
         <div className="entry-geography" aria-hidden="true">
           <svg viewBox="0 0 400 580" className="entry-outline">
@@ -64,17 +67,17 @@ export default function CinematicEntry({ children }) {
             <path className="entry-coast" d={outline} pathLength="1" />
             {accents.map(([cx, cy], index) => <circle className="entry-point" key={index} cx={cx} cy={cy} r="3" style={{ '--point-delay': `${1 + index * .18}s` }} />)}
           </svg>
-          <span className="entry-sea">PHILIPPINE SEA</span>
-          <span className="entry-north">N ↑</span>
+          <span className="entry-sea">{t("PHILIPPINE SEA")}</span>
+          <span className="entry-north">{t("N ↑")}</span>
         </div>
         <div className="entry-title-block">
-          <span className="entry-kicker">OUR COAST. OUR COMMUNITIES.</span>
-          <h1 id="entry-title">EASTERN<br />SAMAR<span>COMMUNITY ACTION MAP</span></h1>
-          <p>Every community has a voice. Every concern deserves attention. Every action can create change.</p>
-          <small>By Julius Lorenzana</small>
+          <span className="entry-kicker">{t("OUR COAST. OUR COMMUNITIES.")}</span>
+          <h1 id="entry-title">{t("EASTERN")}<br />{t("SAMAR")}<span>{t("COMMUNITY ACTION MAP")}</span></h1>
+          <p>{t("Every community has a voice. Every concern deserves attention. Every action can create change.")}</p>
+          <small>{t("By Julius Lorenzana")}</small>
         </div>
       </div>
-      <footer className="entry-footer"><span>BUILT FOR ESTEHANONS</span><button ref={skipRef} onClick={finish}>Skip intro <ArrowUpRight size={17} /></button></footer>
+      <footer className="entry-footer"><span>{t("BUILT FOR ESTEHANONS")}</span><button ref={skipRef} onClick={finish}>{t("Skip intro")} <ArrowUpRight size={17} /></button></footer>
     </section>}
   </>;
 }

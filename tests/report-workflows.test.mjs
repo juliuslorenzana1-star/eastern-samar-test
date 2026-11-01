@@ -12,7 +12,7 @@ let rpcError = { code: 'PGRST202' };
 let reviewColumnsMissing = false;
 globalThis.reportTestTransport = {
   rpc: async () => ({ error: rpcError }),
-  functions: { invoke: async () => ({ data: { skipped: true, reason: 'email_not_configured' } }) },
+  functions: { invoke: async () => { throw new Error('Disabled optional functions must never be called'); } },
   from: (table) => {
     assert.equal(table, 'reports');
     return { select: (columns) => ({ eq: (column, userId) => {
@@ -28,9 +28,12 @@ globalThis.reportTestTransport = {
   },
 };
 const injected = source.replace("import { supabase } from './supabase.js';", 'const supabase = globalThis.reportTestTransport;')
+  .replace("'../i18n/config.js'", JSON.stringify(new URL('../src/i18n/config.js', import.meta.url).href))
   .replace("'./report-validation.js'", JSON.stringify(new URL('../src/lib/report-validation.js', import.meta.url).href))
   .replace("'./categories.js'", JSON.stringify(new URL('../src/lib/categories.js', import.meta.url).href));
-const reports = await import('data:text/javascript;base64,' + Buffer.from(injected).toString('base64'));
+// These workflow tests explicitly exercise the approved/staging branch of the gate.
+const withPolicy = injected.replace("import { requirePersonalDataCollection } from './collection-policy.js';", 'const requirePersonalDataCollection = () => {};');
+const reports = await import('data:text/javascript;base64,' + Buffer.from(withPolicy).toString('base64'));
 
 test('missing ownership RPC and denied owner lookup fail closed', async () => {
   await assert.rejects(reports.fetchMyReports('signed-in-staff'), /my_reports/);

@@ -15,6 +15,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!.env.staging.example
 
 # Editor directories and files
 .vscode/*
@@ -26,3 +27,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Keep generated promotional media and local narrator models out of GitHub
+*.mp4
+*.mov
+*.webm
+*.wav
+*.mp3
+*.zip
+*.onnx
+*.safetensors

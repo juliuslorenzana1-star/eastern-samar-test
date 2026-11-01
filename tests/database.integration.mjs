@@ -13,12 +13,116 @@ async function bootstrapDatabase(db) {
       grant usage on schema auth,public,storage to anon,authenticated,service_role;
       grant execute on function auth.uid() to anon,authenticated,service_role;
       create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
-      create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);
+      create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,metadata jsonb,unique(bucket_id,name));
       alter table storage.objects enable row level security;
       grant select,insert on storage.objects to authenticated;
       create function storage.foldername(text) returns text[] language sql as $$ select string_to_array($1,'/') $$;
     `);
 }
+
+test('restricted staging keeps RLS and blocks unlisted users including definer RPCs',async()=>{
+  const db=new PGlite();try{
+    await bootstrapDatabase(db);const directory=new URL('../supabase/migrations/',import.meta.url);
+    for(const name of (await readdir(directory)).filter(name=>name.endsWith('.sql')).sort())await db.exec(await readFile(new URL(name,directory),'utf8'));
+    await db.exec(await readFile(new URL('../supabase/staging/access-controls.sql',import.meta.url),'utf8'));
+    const allowed='11111111-1111-4111-8111-111111111111',outsider='22222222-2222-4222-8222-222222222222';
+    await db.exec(`insert into auth.users(id)values('${allowed}'),('${outsider}');insert into private.testing_environment values('abcdefghijklmnopqrst');insert into private.authorized_testers(user_id)values('${allowed}')`);
+    async function as(id,sql){await db.exec(`select set_config('request.jwt.claim.sub','${id}',false);set role authenticated`);try{return (await db.query(sql)).rows;}finally{await db.exec('reset role');}}
+    assert.equal((await as(allowed,'select staging_access() as access'))[0].access.authorized,true);
+    assert.equal((await as(outsider,'select staging_access() as access'))[0].access.authorized,false);
+    await assert.rejects(as(outsider,'select * from my_reports()'),/Authorized tester/);
+    await assert.rejects(as(outsider,`select join_volunteer_opportunity(gen_random_uuid())`),/Authorized tester/);
+    await assert.rejects(as(outsider,`insert into reports(title,description,category_slug,municipality)values('Forbidden stage write','This must be denied before saving.','environment','Guiuan')`),/row-level security/);
+    assert.equal((await as(allowed,`insert into reports(title,description,category_slug,municipality)values('Allowed test concern','Non-personal controlled test concern.','environment','Guiuan')returning status`))[0].status,'pending_review');
+    assert.equal((await as(outsider,'select id from reports')).length,0);
+    assert.equal((await as(allowed,'select * from my_reports()')).length,1);
+    await db.exec(`update private.authorized_testers set active=false where user_id='${allowed}'`);
+    await assert.rejects(as(allowed,'select * from my_reports()'),/Authorized tester/);
+    await assert.rejects(db.exec(await readFile(new URL('../supabase/staging/access-controls.sql',import.meta.url),'utf8')),/new empty project/);
+  }finally{await db.close();}
+});
+
+test('direct API quotas protect uploads, timestamps, daily totals and external API budgets',async()=>{
+  const db=new PGlite();
+  try {
+    await bootstrapDatabase(db);
+    const directory=new URL('../supabase/migrations/',import.meta.url);
+    for(const name of (await readdir(directory)).filter(name=>name.endsWith('.sql')).sort()) await db.exec(await readFile(new URL(name,directory),'utf8'));
+    // Model an older deployment with broad insert grants: timestamps still cannot
+    // be forged. The full modern chain already denies this column outright.
+    await db.exec('grant insert(created_at) on public.reports to authenticated');
+    const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
+    await db.exec(`insert into auth.users(id) values('${owner}'),('${other}')`);
+    async function as(role,id,sql){
+      await db.exec(`reset role; select set_config('request.jwt.claim.sub','${id||''}',false); set role ${role}`);
+      try{return (await db.query(sql)).rows;}finally{await db.exec('reset role');}
+    }
+    const reportSql=n=>`insert into reports(title,description,category_slug,municipality,created_at) values('Unique concern ${n}','A distinct isolated concern number ${n}.','environment','Guiuan','2000-01-01') returning id,created_at`;
+    const report=(await as('authenticated',owner,reportSql(0)))[0];
+    assert.ok(new Date(report.created_at).getFullYear()>2020);
+    const second=(await as('authenticated',owner,reportSql(1)))[0].id;
+    const otherReport=(await as('authenticated',other,reportSql(9)))[0].id;
+    const path=id=>`${id}/${crypto.randomUUID()}.png`;
+    const upload=name=>`insert into storage.objects(bucket_id,name,metadata) values('report-evidence','${name}','{"size":100,"mimetype":"image/png"}')`;
+    await assert.rejects(as('authenticated',other,upload(path(report.id))),/row-level security/);
+    await assert.rejects(as('authenticated',owner,upload(`${report.id}/nested/file.png`)),/row-level security/);
+    await assert.rejects(as('anon',null,`select claim_external_api_usage('ai','${owner}')`),/permission denied/);
+    await assert.rejects(as('authenticated',owner,`select claim_external_api_usage('ai','${owner}')`),/permission denied/);
+    await assert.rejects(as('authenticated',owner,'select * from private.external_api_controls'),/permission denied/);
+    assert.equal((await as('service_role',null,`select claim_external_api_usage('ai','${owner}') result`))[0].result,'disabled');
+
+    // Existing objects count without backfilling or changing them.
+    await db.exec(upload(path(report.id)));
+    const good=path(report.id);
+    await as('authenticated',owner,upload(good));
+    await as('authenticated',owner,upload(path(report.id)));
+    await assert.rejects(as('authenticated',owner,upload(path(report.id))),/evidence limit/);
+    await assert.rejects(as('authenticated',owner,`insert into report_evidence(report_id,uploaded_by,object_path,content_type,byte_size) values('${report.id}','${owner}','${path(report.id)}','image/png',1)`),/Upload the evidence/);
+    await as('authenticated',owner,`insert into report_evidence(report_id,uploaded_by,object_path,content_type,byte_size) values('${report.id}','${other}','${good}','image/jpeg',1)`);
+    const metadata=(await db.query(`select uploaded_by,byte_size,content_type from report_evidence where object_path='${good}'`)).rows[0];
+    assert.deepEqual(metadata,{uploaded_by:owner,byte_size:100,content_type:'image/png'});
+    await db.exec(`grant update on storage.objects to authenticated; create policy test_permissive_update on storage.objects for update to authenticated using(true) with check(true)`);
+    assert.equal((await as('authenticated',owner,`update storage.objects set name='changed' where name='${good}' returning name`)).length,0);
+    await db.exec('drop policy test_permissive_update on storage.objects');
+
+    // A failed transaction rolls its claims back with the object insert.
+    const claimsBefore=(await db.query('select count(*)::int total from private.evidence_upload_claims')).rows[0].total;
+    await db.exec('begin');
+    await as('authenticated',owner,upload(path(second)));
+    await db.exec('rollback');
+    assert.equal((await db.query('select count(*)::int total from private.evidence_upload_claims')).rows[0].total,claimsBefore);
+    for(const [count,userId,expected] of [[10,owner,/10 files per 24 hours/],[20,owner,/allowance is full/],[50,other,/daily evidence/],[100,other,/storage allowance/]]) {
+      await db.exec(`delete from private.evidence_upload_claims; delete from storage.objects; insert into private.evidence_upload_claims(object_path,report_id,user_id) select '${otherReport}/'||gen_random_uuid()||'.png','${otherReport}','${userId}' from generate_series(1,${count})`);
+      await assert.rejects(as('authenticated',owner,upload(path(second))),expected);
+    }
+
+    // Short and daily report limits cannot be bypassed with backdated inputs.
+    for(let n=2;n<5;n++)await as('authenticated',owner,reportSql(n));
+    await assert.rejects(as('authenticated',owner,reportSql(5)),/5 per 10 minutes/);
+    await db.exec(`update reports set created_at=now()-interval '1 hour'`);
+    for(let n=5;n<20;n++){
+      await as('authenticated',owner,reportSql(n));
+      await db.exec(`update reports set created_at=now()-interval '1 hour' where reporter_id='${owner}'`);
+    }
+    await assert.rejects(as('authenticated',owner,reportSql(20)),/20 per 24 hours/);
+    // Seed existing history as an administrator, then restore the real trigger.
+    await db.exec(`alter table reports disable trigger user; insert into reports(reporter_id,title,description,category_slug,municipality,created_at) select '${other}','Historical report '||n,'An existing historical report number '||n,'environment','Guiuan',now()-interval '1 hour' from generate_series(1,179) n; alter table reports enable trigger user`);
+    await assert.rejects(as('authenticated',other,reportSql(200)),/daily report allowance/);
+
+    // Simulate later approval only in isolated Postgres; production stays off.
+    await db.exec("update private.external_api_controls set enabled=true");
+    for(let n=0;n<3;n++)assert.equal((await as('service_role',null,`select claim_external_api_usage('ai','${owner}') result`))[0].result,'claimed');
+    assert.equal((await as('service_role',null,`select claim_external_api_usage('ai','${owner}') result`))[0].result,'rate_limited');
+    await db.exec(`insert into private.external_api_claims(service,user_id) select 'ai','${other}' from generate_series(1,17)`);
+    assert.equal((await as('service_role',null,`select claim_external_api_usage('ai','${other}') result`))[0].result,'rate_limited');
+    for(let n=0;n<10;n++)assert.equal((await as('service_role',null,`select claim_external_api_usage('email','${owner}') result`))[0].result,'claimed');
+    assert.equal((await as('service_role',null,`select claim_external_api_usage('email','${owner}') result`))[0].result,'rate_limited');
+    await db.exec(`update private.external_api_claims set created_at=now()-interval '2 hours' where service='email'; insert into private.external_api_claims(service,user_id,created_at) select 'email','${owner}',now()-interval '2 hours' from generate_series(1,10)`);
+    assert.equal((await as('service_role',null,`select claim_external_api_usage('email','${owner}') result`))[0].result,'rate_limited');
+    await db.exec(`insert into private.external_api_claims(service,user_id) select 'email','${other}' from generate_series(1,80)`);
+    assert.equal((await as('service_role',null,`select claim_external_api_usage('email','${other}') result`))[0].result,'rate_limited');
+  }finally{await db.close();}
+});
 
 test('database migrations enforce reporting, moderation, capacity and privacy', async () => {
   const db = new PGlite();

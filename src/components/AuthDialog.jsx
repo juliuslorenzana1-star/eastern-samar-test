@@ -1,7 +1,11 @@
+import { t } from '../i18n/config.js';
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { ArrowLeft, ShieldCheck, X } from 'lucide-react';
 import useDialogFocus from '../lib/useDialogFocus.js';
 import { WELCOME_VERSION } from '../lib/onboarding.js';
+import LanguageSelector from './LanguageSelector.jsx';
+import { personalDataCollectionEnabled, collectionPauseMessage, collectionPolicy } from '../lib/collection-policy.js';
 
 const copy = {
   'sign-in': {
@@ -45,7 +49,8 @@ function authErrorMessage(error) {
 }
 
 export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose, onNotice, onAuthenticated, onAccountCreated }) {
-  const [mode, setMode] = useState(initialMode);
+  useTranslation();
+  const [mode, setMode] = useState(collectionPolicy.kind === 'staging' ? 'sign-in' : initialMode);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -56,12 +61,22 @@ export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose,
 
   async function submit(event) {
     event.preventDefault();
+    if (!personalDataCollectionEnabled) { setError(collectionPauseMessage); return; }
+    if (collectionPolicy.kind === 'staging' && mode !== 'sign-in') { setError('Use your designated testing account.'); return; }
     setBusy(true);
     setError('');
     try {
       if (mode === 'sign-in') {
         const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
         if (authError) throw authError;
+        if (collectionPolicy.kind === 'staging') {
+          const { data: access, error: accessError } = await supabase.rpc('staging_access');
+          if (accessError || !access?.authorized || access.project_ref !== import.meta.env.VITE_STAGING_PROJECT_REF) {
+            await supabase.auth.signOut({ scope: 'local' });
+            setError('This account is not authorized for this testing environment.');
+            return;
+          }
+        }
         onAuthenticated?.(data.user);
         onNotice('You are signed in. Reports will load from the shared database.');
         onClose();
@@ -118,43 +133,43 @@ export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose,
       <section ref={dialogRef} tabIndex={-1} className="report-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" aria-busy={busy}>
         <div className="modal-head">
           <div>
-            <span className="eyebrow">EASTERN SAMAR COMMUNITY ACTION</span>
-            <h2 id="auth-dialog-title">{current.title}</h2>
+            <span className="eyebrow">{t("EASTERN SAMAR COMMUNITY ACTION")}</span>
+            <h2 id="auth-dialog-title">{t(current.title)}</h2>
           </div>
-          <button className="icon-button" disabled={busy} onClick={onClose} aria-label="Close account dialog"><X size={19} /></button>
+          <LanguageSelector compact />
+          <button className="icon-button" disabled={busy} onClick={onClose} aria-label={t("Close account dialog")}><X size={19} /></button>
         </div>
-        <p className="modal-intro">{current.intro}</p>
-        <p className="modal-byline">Developed by Julius Lorenzana</p>
+        <p className="modal-intro">{t(current.intro)}</p>
+        <p className="modal-byline">{t("Developed by Julius Lorenzana")}</p>
         <form onSubmit={submit}>
           {mode === 'sign-up' && (
-            <label className="field-label">Display name <span className="optional-label">Optional</span>
+            <label className="field-label">{t("Display name")} <span className="optional-label">{t("Optional")}</span>
               <input autoComplete="name" maxLength="80" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
             </label>
           )}
           {mode !== 'update' && (
-            <label className="field-label">Email
-              <input autoComplete="email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
+            <label className="field-label">{t("Email")} <input autoComplete="email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
             </label>
           )}
           {mode !== 'recovery' && (
-            <label className="field-label">{mode === 'update' ? 'New password' : 'Password'}
+            <label className="field-label">{mode === 'update' ? t("New password") : t("Password")}
               <input autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} type="password" minLength="8" required value={password} onChange={(event) => setPassword(event.target.value)} />
-              {mode !== 'sign-in' && <span className="field-hint">Use at least 8 characters.</span>}
+              {mode !== 'sign-in' && <span className="field-hint">{t("Use at least 8 characters.")}</span>}
             </label>
           )}
-          {error && <p className="form-error" role="alert">{error}</p>}
+          {error && <p className="form-error" role="alert">{t(error)}</p>}
           <div className="modal-foot auth-modal-foot">
-            <span><ShieldCheck size={14} /> Account access is managed securely.</span>
-            <button className="primary-button" type="submit" disabled={busy}>{busy ? 'Please wait…' : current.action}</button>
+            <span><ShieldCheck size={14} />  {t("Account access is managed securely.")}</span>
+            <button className="primary-button" type="submit" disabled={busy}>{busy ? t("Please wait…") : t(current.action)}</button>
           </div>
         </form>
         <div className="auth-links">
-          {mode === 'sign-in' && <>
-            <button onClick={() => changeMode('sign-up')}>Create an account</button>
-            <button onClick={() => changeMode('recovery')}>Forgot password?</button>
+          {mode === 'sign-in' && collectionPolicy.kind !== 'staging' && <>
+            <button onClick={() => changeMode('sign-up')}>{t("Create an account")}</button>
+            <button onClick={() => changeMode('recovery')}>{t("Forgot password?")}</button>
           </>}
-          {mode === 'sign-up' && <button onClick={() => changeMode('sign-in')}><ArrowLeft size={13} /> Back to sign in</button>}
-          {mode === 'recovery' && <button onClick={() => changeMode('sign-in')}><ArrowLeft size={13} /> Back to sign in</button>}
+          {mode === 'sign-up' && <button onClick={() => changeMode('sign-in')}><ArrowLeft size={13} />  {t("Back to sign in")}</button>}
+          {mode === 'recovery' && <button onClick={() => changeMode('sign-in')}><ArrowLeft size={13} />  {t("Back to sign in")}</button>}
         </div>
       </section>
     </div>
