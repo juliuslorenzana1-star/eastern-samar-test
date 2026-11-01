@@ -1,4 +1,4 @@
-import { t } from '../i18n/config.js';
+import { languageCode, t } from '../i18n/config.js';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Plus, ShieldCheck, WifiOff, X } from 'lucide-react';
@@ -18,7 +18,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
   const [step, setStep] = useState(1);
   const stepHeading = useRef(null);
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
-  const dialogRef = useDialogFocus({ active: !hidden, busy, onClose });
+  const dialogRef = useDialogFocus({ active: !hidden, busy, onClose, preserveOpener: true });
   const submitLock = useRef(false);
 
   useEffect(() => { stepHeading.current?.focus(); }, [step]);
@@ -118,8 +118,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
     <div className={`modal-backdrop${hidden ? ' is-hidden' : ''}`} onMouseDown={(event) => !busy && event.target === event.currentTarget && onClose()}>
       <section ref={dialogRef} tabIndex={-1} className="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-form-title" aria-busy={busy}>
         <div className="modal-head">
-          <div><span className="eyebrow">{t("COMMUNITY REPORT")}</span><h2 id="report-form-title">{t("Report a Concern")}</h2></div>
-          <LanguageSelector compact />
+          <div><h2 id="report-form-title">{t("Report a Concern")}</h2></div>
           <button className="icon-button" disabled={busy} onClick={onClose} aria-label={t("Close report form")}><X size={19} /></button>
         </div>
 
@@ -130,12 +129,12 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
           </div>
         )}
 
-        <ol className="report-steps" aria-label={t("Report progress")}>{['Details', 'Location', 'Review'].map((label, index) => <li key={label} aria-current={step === index + 1 ? 'step' : undefined}><span>{index + 1}</span>{t(label)}</li>)}</ol>
+        <ol className="report-steps" aria-label={t("Report progress")}>{['Details', 'Location', 'Review'].map((label, index) => <li key={label} data-complete={step > index + 1 || undefined} aria-current={step === index + 1 ? 'step' : undefined}><span className="report-step-caption">{t('Step {{step}}', { step: index + 1 })}</span><strong>{t(label)}</strong></li>)}</ol>
         <h3 className="step-heading" ref={stepHeading} tabIndex={-1}>{[t("What needs attention?"), t("Where is the concern?"), t("Review your report")][step - 1]}</h3>
-        <p className="modal-intro">{t("Your report stays private until reviewed. Avoid names or details that identify vulnerable people. Automated screening, when configured, supports human review.")}</p>
+        {step === 1 && <p className="modal-intro">{t("Your report stays private until reviewed. Avoid names or details that identify vulnerable people. Automated screening, when configured, supports human review.")}</p>}
         <form onSubmit={submit}>
           <fieldset className="report-form-section" disabled={busy || step !== 1} hidden={step !== 1}>
-          <legend><span>01</span>  {t("What needs attention?")}</legend>
+          <legend className="sr-only">{t("What needs attention?")}</legend>
           <label className="field-label">{t("Concern title")} <input name="title" maxLength="120" minLength="6" required value={form.title} onChange={update} placeholder={t("What needs attention?")} />
           </label>
           <div className="form-row">
@@ -153,7 +152,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
           {preview && <img className="evidence-preview" src={preview} alt={t("Preview of selected evidence")} />}
           </fieldset>
           <fieldset className="report-form-section" disabled={busy || step !== 2} hidden={step !== 2}>
-          <legend><span>02</span>  {t("Choose a location")}</legend>
+          <legend className="sr-only">{t("Choose a location")}</legend>
             <label className="field-label">{t("Municipality / city")} <select name="municipality" required value={form.municipality} onChange={update}>
                 <option value="">{t("Choose an area")}</option>
                 {municipalities.map((place) => <option key={place}>{place}</option>)}
@@ -186,7 +185,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
           {step === 3 && <section className="report-review" aria-label={t("Report review")}>
             {preview && <img className="evidence-preview" src={preview} alt={t("Photo attached to this report")} />}
             <span className="eyebrow">{t(categories.find(category => category.slug === selectedCategory)?.name)}</span><h3>{form.title}</h3><p><MapPin size={16} />{[form.barangay, form.municipality].filter(Boolean).join(', ')}</p><p className="review-description">{form.description}</p>
-            <dl><dt>{t("Urgency")}</dt><dd>{t(form.priority)}</dd><dt>{t("Map point")}</dt><dd>{location ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : t("Not supplied")}</dd>{form.incidentAt && <><dt>{t("Incident")}</dt><dd>{form.incidentAt.replace('T', ' ')}</dd></>}{form.neededBy && <><dt>{t("Needed by")}</dt><dd>{form.neededBy}</dd></>}</dl><button type="button" className="outline-button" onClick={() => setStep(1)}>{t("Edit details")}</button><button type="button" className="outline-button" onClick={() => setStep(2)}>{t("Edit location")}</button>
+            <dl><dt>{t("Urgency")}</dt><dd>{t({ low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' }[form.priority])}</dd><dt>{t("Map point")}</dt><dd>{location ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : t("Not supplied")}</dd>{form.incidentAt && <><dt>{t("Incident")}</dt><dd>{form.incidentAt.replace('T', ' ')}</dd></>}{form.neededBy && <><dt>{t("Needed by")}</dt><dd>{form.neededBy}</dd></>}</dl><button type="button" className="outline-button" onClick={() => setStep(1)}>{t("Edit details")}</button><button type="button" className="outline-button" onClick={() => setStep(2)}>{t("Edit location")}</button>
           </section>}
           {error && <p className="form-error" role="alert">{t(error)}</p>}
           <div className="modal-foot">
@@ -205,6 +204,10 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
               {step < 3 ? <button key="next" className="primary-button" type="button" disabled={!categories.length} onClick={nextStep}>{t("Next →")}</button> : <button key="submit" className="primary-button" type="submit" disabled={busy || !categories.length}><Plus size={16} />{busy ? t("Submitting…") : t("Submit report")}</button>}
             </div>
           </div>
+          <details className="report-language-settings">
+            <summary>{t('Language')} · {languageCode().toUpperCase()}</summary>
+            <LanguageSelector />
+          </details>
         </form>
       </section>
     </div>

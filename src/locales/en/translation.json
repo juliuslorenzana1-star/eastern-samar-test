@@ -1168,5 +1168,9 @@
   "Use your designated testing account.": "Use your designated testing account.",
   "This account is not authorized for this testing environment.": "This account is not authorized for this testing environment.",
   "Testing": "Testing",
-  "Moderation needs a database update. No changes were saved. Contact the platform administrator.": "Moderation needs a database update. No changes were saved. Contact the platform administrator."
+  "Moderation needs a database update. No changes were saved. Contact the platform administrator.": "Moderation needs a database update. No changes were saved. Contact the platform administrator.",
+  "Public reporting unavailable": "Public reporting unavailable",
+  "A verified privacy contact, confirmed operator and approved retention schedule are required before public collection opens.": "A verified privacy contact, confirmed operator and approved retention schedule are required before public collection opens.",
+  "Fictional test data": "Fictional test data",
+  "Step {{step}}": "Step {{step}}"
 }

@@ -45,8 +45,11 @@ async function pageFor(width,{signedIn=false,staff=false}={}){
   return {page,context,errors,writes};
 }
 async function language(page,code,scope=page.locator('.topbar')){
+  const settings=scope.locator('.report-language-settings');
+  if(await settings.count())await settings.evaluate(node=>{node.open=true;});
   await scope.locator('.language-selector select').selectOption(code);
   await page.waitForFunction(code=>document.documentElement.lang===code,code);
+  if(await settings.count())await settings.evaluate(node=>{node.open=false;});
 }
 async function fits(page){assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'horizontal overflow');}
 try{

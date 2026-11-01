@@ -16,16 +16,21 @@ function lockPage() {
 }
 
 // Keep keyboard focus in a modal and return it to the opener on dismissal.
-export default function useDialogFocus({ active = true, busy = false, onClose }) {
+export default function useDialogFocus({ active = true, busy = false, onClose, preserveOpener = false }) {
   const dialogRef = useRef(null);
+  const originalOpener = useRef(null);
   const close = useEffectEvent(() => { if (!busy) onClose(); });
   useEffect(() => {
     if (!active) return undefined;
     const dialog = dialogRef.current;
     if (!dialog) return undefined;
-    const opener = document.activeElement;
+    // Report location picking temporarily hides this mounted dialog. Preserve its
+    // external opener across that hand-off instead of returning focus to a field
+    // that will disappear with the form when the user finally closes it.
+    const opener = preserveOpener && originalOpener.current?.isConnected ? originalOpener.current : document.activeElement;
+    if (preserveOpener && !dialog.contains(opener)) originalOpener.current = opener;
     const unlockPage = lockPage();
-    const controls = () => [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]')]
+    const controls = () => [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], summary, [tabindex="0"]')]
       .filter((element) => element.getClientRects().length > 0);
     // Wait for the entry overlay to release inert content before taking focus.
     const focusFirst = () => { if (!dialog.closest('[inert]')) (controls()[0] || dialog).focus(); };
@@ -49,6 +54,6 @@ export default function useDialogFocus({ active = true, busy = false, onClose })
       unlockPage();
       if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
     };
-  }, [active]);
+  }, [active, preserveOpener]);
   return dialogRef;
 }

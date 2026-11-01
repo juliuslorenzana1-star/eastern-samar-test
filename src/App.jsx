@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import AuthDialog from './components/AuthDialog.jsx';
 import LanguageSelector from './components/LanguageSelector.jsx';
-import { personalDataCollectionEnabled, collectionPauseMessage, collectionPolicy } from './lib/collection-policy.js';
+import CollectionStatus from './components/CollectionStatus.jsx';
+import { personalDataCollectionEnabled } from './lib/collection-policy.js';
 import EmergencyHotlineDrawer from './components/EmergencyHotlineDrawer.jsx';
 import ProvincePulse from './components/ProvincePulse.jsx';
 import ReportDialog from './components/ReportDialog.jsx';
@@ -439,6 +440,7 @@ function App() {
     if (window.innerWidth <= 900 && !['reports', 'submissions'].includes(navigationTarget)) setPanelOpen(false);
   }
   function startReport() {
+    if (!personalDataCollectionEnabled) { setAuthMode('sign-in'); setFormOpen(true); return; }
     if (!isSupabaseConfigured) { setNotice('The shared database is not configured, so reports cannot be accepted yet.'); return; }
     if (!session?.user) { setAuthMode('sign-in'); setFormOpen(true); setNotice('Sign in to submit a report.'); return; }
     setAuthMode(null);
@@ -591,8 +593,7 @@ function App() {
       </div>
     </header>
     <NetworkStatus />
-    {collectionPolicy.kind === 'staging' && <p className="testing-environment-label">{t('Testing environment · authorized testers only')}</p>}
-    {!personalDataCollectionEnabled && <p className="collection-pause-banner" role="status">{t(collectionPauseMessage)}</p>}
+    <CollectionStatus />
     <section className="dashboard-heading" id="top">
       <div className="heading-copy">
         <span className="eyebrow"><MapPin size={14} />  {t("EASTERN SAMAR · TOGETHER, WE CAN")}</span>

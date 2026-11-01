@@ -128,6 +128,15 @@ export default function AuthDialog({ supabase, initialMode = 'sign-in', onClose,
     setMode(nextMode);
   }
 
+  if (!personalDataCollectionEnabled) return <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
+    <section ref={dialogRef} tabIndex={-1} className="report-modal auth-modal collection-unavailable" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title">
+      <div className="modal-head"><div><h2 id="auth-dialog-title">{t('Public reporting unavailable')}</h2></div><button className="icon-button" onClick={onClose} aria-label={t('Close account dialog')}><X size={19} /></button></div>
+      <p className="modal-intro">{t(collectionPauseMessage)}</p>
+      <p>{t('A verified privacy contact, confirmed operator and approved retention schedule are required before public collection opens.')}</p>
+      <div className="modal-foot"><button className="outline-button" onClick={onClose}>{t('Close')}</button></div>
+    </section>
+  </div>;
+
   return (
     <div className="modal-backdrop" onMouseDown={(event) => !busy && event.target === event.currentTarget && onClose()}>
       <section ref={dialogRef} tabIndex={-1} className="report-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" aria-busy={busy}>

@@ -1,6 +1,5 @@
 import React from 'react';
 import { initializeLanguage, t } from './i18n/config.js';
-import './i18n/language.css';
 import { installValidationLocalization } from './i18n/validation.js';
 import { createRoot } from 'react-dom/client';
 import 'leaflet/dist/leaflet.css';
@@ -27,3 +26,5 @@ initializeLanguage().catch(() => {}).finally(() => createRoot(document.getElemen
 
 import './mobile-recognition.css';
 import './redesign.css';
+// Shared navigation controls follow generic form/layout rules.
+import './i18n/language.css';

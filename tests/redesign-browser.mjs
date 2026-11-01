@@ -100,7 +100,7 @@ try {
     const dialog = page.getByRole('dialog', { name: 'Report a Concern', exact: true });
     await dialog.waitFor();
     await dialog.getByRole('button', { name: 'Next', exact: false }).click();
-    assert.equal(await dialog.locator('[aria-current="step"]').innerText(), '1\nDetails');
+    assert.equal(await dialog.locator('[aria-current="step"]').innerText(), 'Step 1\nDetails');
     await dialog.getByRole('textbox', { name: 'Concern title' }).fill('Local QA fixture report');
     await dialog.getByRole('textbox', { name: 'Describe the concern' }).fill('This is a browser-only fixture description for the reporting flow.');
     await dialog.getByRole('button', { name: 'Next', exact: false }).click();

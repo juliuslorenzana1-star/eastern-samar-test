@@ -16,7 +16,7 @@ Do not invent any of these, make compliance claims or enable collection solely f
 
 ## Implemented locally
 
-The default build fails closed for account form requests, report creation, volunteer registration and public alias updates. It displays a collection-paused banner. The isolated browser rehearsal uses `https://demo.invalid` and fictional identities, with every external request intercepted or blocked. Optional AI and email calls default off independently.
+The default build fails closed for account form requests, report creation, volunteer registration and public alias updates. It displays a compact expandable availability disclosure; blocked public account/report entry asks for no personal-data fields. The isolated browser rehearsal uses `https://demo.invalid` and fictional identities, with every external request intercepted or blocked. Optional AI and email calls default off independently.
 
 The client gate is an operational safeguard, **not server authorization**. A public browser can bypass client code. Existing deployed code and direct provider endpoints are unchanged. Collection has **not** been verified disabled on production by this task.
 
@@ -38,3 +38,7 @@ Use a qualified Philippine privacy/legal professional to review lawful bases, se
 ## Presentation language
 
 “This is a restricted demonstration using fictional information. Public personal-information collection is a release blocker pending verified contact, controller confirmation and an approved retention/deletion schedule.” Do not state that production collection is disabled until the provider and direct-request checks above are complete.
+
+## Latest read-only readiness findings
+
+Supabase Auth still reports `disable_signup=false`, and authenticated report INSERT privileges remain active behind existing ownership/quota policies. The frontend gate is therefore not a verified provider-side collection pause. No production settings or SQL writes were changed in this readiness task. The reviewed, locally tested trigger pause proposal now covers direct and privileged-RPC inserts; separate Auth signup closure and release approval are still required. See [the full readiness report](FINAL_READINESS_REVIEW.md).

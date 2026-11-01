@@ -277,3 +277,55 @@ test('recognition repair works on legacy schema, protects identity, ranks ties a
 
 import { registerModerationRpcTests } from "./moderation-rpc.database.mjs";
 registerModerationRpcTests(bootstrapDatabase);
+
+test('review-only read RPCs repair the legacy timeline and protect aggregate/private boundaries',async()=>{
+  const db=new PGlite();try{
+    await bootstrapDatabase(db);const dir=new URL('../supabase/migrations/',import.meta.url);
+    const names=(await readdir(dir)).filter(n=>n.endsWith('.sql')&&!/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair/.test(n)).sort();
+    for(const name of names)await db.exec(await readFile(new URL(name,dir),'utf8'));
+    const repair=(await readdir(dir)).find(n=>n.endsWith('_moderate_report_contract_repair.sql'));await db.exec(await readFile(new URL(repair,dir),'utf8'));
+    const resident='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222',staff='33333333-3333-4333-8333-333333333333';
+    await db.exec(`insert into auth.users(id)values('${resident}'),('${other}'),('${staff}');update profiles set role='moderator' where id='${staff}'`);
+    async function as(role,id,sql){await db.exec(`select set_config('request.jwt.claim.sub','${id||''}',false);set role ${role}`);try{return(await db.query(sql)).rows;}finally{await db.exec("reset role;select set_config('request.jwt.claim.sub','',false)");}}
+    const id=(await as('authenticated',resident,`insert into reports(title,description,category_slug,municipality)values('Isolated read test','Fictional concern, no personal data.','environment','Guiuan')returning id`))[0].id;
+    const sql=await readFile(new URL('../supabase/proposed/presentation_read_rpcs.sql',import.meta.url),'utf8');await db.exec(sql);await db.exec(sql);
+    assert.equal((await as('anon',null,`select * from report_progress('${id}')`)).length,0);
+    assert.equal((await as('authenticated',other,`select * from report_progress('${id}')`)).length,0);
+    const mine=await as('authenticated',resident,`select * from report_progress('${id}')`);assert.equal(mine.length,1);assert.deepEqual(Object.keys(mine[0]).sort(),['created_at','id','status']);
+    assert.equal((await as('anon',null,'select * from platform_statistics()'))[0].pending_reports,null);
+    assert.equal(Number((await as('authenticated',staff,'select * from platform_statistics()'))[0].pending_reports),1);
+    await as('authenticated',staff,`select moderate_report('${id}','approved','normal','Never public note',null)`);
+    await as('authenticated',staff,`select moderate_report('${id}','resolved','normal',null,null)`);
+    let totals=(await as('anon',null,'select * from platform_statistics()'))[0];assert.equal(Number(totals.total_reports),1);assert.equal(Number(totals.verified_reports),0);assert.equal(Number(totals.resolved_reports),1);
+    const progress=await as('anon',null,`select * from report_progress('${id}')`);assert.equal(progress.length,2);assert.deepEqual(Object.keys(progress[0]).sort(),['created_at','id','status']);assert.equal(JSON.stringify(progress).includes('Never public note'),false);
+    await as('authenticated',staff,`select moderate_report('${id}','verified','normal',null,null)`);
+    await as('authenticated',staff,`select moderate_report('${id}','resolved','normal',null,null)`);
+    totals=(await as('anon',null,'select * from platform_statistics()'))[0];assert.equal(Number(totals.verified_reports),1);assert.equal(Number(totals.resolved_reports),1);
+    await as('authenticated',staff,`select moderate_report('${id}','rejected','normal',null,'Fictional review reason')`);assert.equal((await as('anon',null,`select * from report_progress('${id}')`)).length,0);
+    assert.equal(Number((await as('anon',null,'select * from platform_statistics()'))[0].total_reports),0);
+  }finally{await db.close();}
+});
+
+test('review-only server pause blocks direct and definer collection while preserving existing moderation',async()=>{
+  const db=new PGlite();try{
+    await bootstrapDatabase(db);const directory=new URL('../supabase/migrations/',import.meta.url);
+    for(const name of(await readdir(directory)).filter(n=>n.endsWith('.sql')).sort())await db.exec(await readFile(new URL(name,directory),'utf8'));
+    const resident='11111111-1111-4111-8111-111111111111',moderator='33333333-3333-4333-8333-333333333333';
+    await db.exec(`insert into auth.users(id)values('${resident}'),('${moderator}');update profiles set role='moderator' where id='${moderator}'`);
+    async function as(id,sql){await db.exec(`select set_config('request.jwt.claim.sub','${id}',false);set role authenticated`);try{return(await db.query(sql)).rows;}finally{await db.exec("reset role;select set_config('request.jwt.claim.sub','',false)");}}
+    const insert=`insert into reports(title,description,category_slug,municipality)values('Isolated privacy concern','Fictional test concern only.','environment','Guiuan') returning id`;
+    const report=(await as(resident,insert))[0].id;
+    const activity=(await as(moderator,`insert into volunteer_opportunities(title,description,status,starts_at,organizer_id)values('Isolated activity','Fictional activity only.','published',now()+interval '7 days','${moderator}')returning id`))[0].id;
+    await db.exec(await readFile(new URL('../supabase/proposed/pause_public_collection.sql',import.meta.url),'utf8'));
+    await assert.rejects(as(resident,insert),/collection is paused/);
+    await assert.rejects(as(resident,`select join_volunteer_opportunity('${activity}')`),/collection is paused/);
+    await assert.rejects(as(resident,`update profiles set public_alias='Sample helper' where id='${resident}'`),/collection is paused/);
+    await assert.rejects(db.exec("insert into auth.users(id)values(gen_random_uuid())"),/collection is paused/);
+    await assert.rejects(as(resident,`insert into storage.objects(bucket_id,name,metadata)values('report-evidence','${report}/00000000-0000-4000-8000-000000000001.png','{"size":1,"mimetype":"image/png"}')`),/collection is paused/);
+    await as(moderator,`select moderate_report('${report}','verified','normal','Existing report review',null)`);
+    assert.equal((await db.query(`select status,is_public from reports where id='${report}'`)).rows[0].status,'verified');
+    assert.equal((await db.query('select count(*)::int n from reports')).rows[0].n,1);
+    assert.equal((await db.query('select count(*)::int n from volunteer_registrations')).rows[0].n,0);
+    assert.equal((await db.query(`select bool_and(relrowsecurity) enabled from pg_class where oid in ('public.reports'::regclass,'public.profiles'::regclass,'storage.objects'::regclass)`)).rows[0].enabled,true);
+  }finally{await db.close();}
+});

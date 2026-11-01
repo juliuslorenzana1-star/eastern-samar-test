@@ -4,6 +4,7 @@
   --line: #80929e; --forest: #007b68; --forest-dark: #006453;
   --forest-soft: #e0f4ee; --gold: #876322; --coast: #126786;
   --page-background: #edf3f6; --radius: 12px;
+  --control-radius: 8px; --control-touch-size: 44px; --focus-width: 2px; --focus-color: var(--coast);
 }
 [data-theme='dark'] {
   --ink: #f1f7fa; --muted: #afc3d1; --paper: #0c202e; --canvas: #06131d;
@@ -14,7 +15,9 @@
 body { min-width: 320px; background: var(--canvas); }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 button, a { touch-action: manipulation; }
-:focus-visible { outline: 3px solid var(--coast) !important; outline-offset: 3px; }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+:is(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: 2px; }
+.field-label :is(input, select, textarea):focus { box-shadow: none; border-color: var(--coast); }
 .app-shell { max-width: 1920px; margin-inline: auto; font-family: 'DM Sans', 'Segoe UI', sans-serif; }
 [data-theme] .app-shell { --ink: inherit; --muted: inherit; --paper: inherit; --canvas: inherit; --line: inherit; --forest: inherit; --forest-dark: inherit; }
 .app-shell .topbar { height: 76px; min-height: 76px; flex-basis: 76px; padding: 0 32px; gap: 24px; border-top: 0; border-bottom: 1px solid var(--line); background: var(--paper); backdrop-filter: none; }
@@ -131,18 +134,33 @@ button, a { touch-action: manipulation; }
 .is-fullscreen-map .map-column { height: 100%; display: flex; flex-direction: column; }
 .app-shell.is-fullscreen-map .map-stage { height: 100%; flex: 1; min-height: 0; }
 .modal-backdrop { z-index: 3000; }
-.report-modal { border: 1px solid var(--line); border-radius: 14px; color: var(--ink); background: var(--paper); width: min(640px, 100%); }
+.report-modal { border: 1px solid var(--line); border-radius: 14px; color: var(--ink); background: var(--paper); width: min(640px, 100%); max-height: min(88dvh, 860px); overscroll-behavior: contain; scrollbar-gutter: stable; }
+.modal-head { gap: 12px; align-items: flex-start; }
+.modal-head > div:first-child { flex: 1; min-width: 0; }
+.modal-head h2 { margin-top: 0; overflow-wrap: anywhere; line-height: 1.25; }
+.modal-head > .icon-button { width: var(--control-touch-size); height: var(--control-touch-size); flex: 0 0 var(--control-touch-size); border-radius: var(--control-radius); }
+.report-modal .modal-head h2 { margin: 8px 0; }
 .report-modal .modal-intro { color: var(--muted); font-size: 14px; line-height: 1.6; }
 .report-modal h2 { font-size: 23px; }
 .report-modal .field-label { font-size: 15px; line-height: 1.5; }
 .report-modal input, .report-modal textarea, .report-modal select { min-height: 46px; padding: 11px 12px; font-size: 16px; border-radius: 8px; background: var(--canvas); color: var(--ink); border: 1px solid var(--line); width: 100%; }
 .report-modal .form-row { grid-template-columns: minmax(0, 1fr); }
 .report-form-section[hidden] { display: none; }
-.report-steps { list-style: none; display: flex; justify-content: space-between; padding: 0; margin: 24px 0; gap: 12px; }
-.report-steps li { flex: 1; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; border-bottom: 2px solid var(--line); padding-bottom: 12px; }
-.report-steps li span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); }
+.report-form-section { min-inline-size: 0; grid-template-columns: minmax(0,1fr); width: 100%; margin: 0; padding: 0; border: 0; }
+.report-modal .field-label { min-width: 0; }
+.report-modal .field-label :is(input,select,textarea) { background: var(--canvas); color: var(--ink); border-color: var(--line); }
+.report-modal .review-description { background: var(--canvas); color: var(--ink); border-color: var(--line); }
+.report-steps { list-style: none; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); padding: 0; margin: 16px 0 20px; gap: 12px; }
+.report-steps li { min-width: 0; display: grid; align-content: start; gap: 4px; color: var(--muted); border-bottom: 2px solid var(--line); padding: 0 0 10px; line-height: 1.3; }
+.report-step-caption { font-size: 12px; }
+.report-steps li strong { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .report-steps li[aria-current='step'] { color: var(--forest); border-color: var(--forest); font-weight: 700; }
-.report-steps li[aria-current='step'] span { background: var(--forest-soft); border-color: var(--forest); }
+.report-steps li[aria-current='step'] strong { font-weight: 700; }
+.report-steps li[data-complete] { border-color: var(--forest); }
+.report-language-settings { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.report-language-settings > summary { min-height: 44px; width: fit-content; max-width: 100%; display: list-item; align-content: center; cursor: pointer; padding: 10px 2px; box-sizing: border-box; }
+.report-language-settings[open] { padding-bottom: 4px; }
+.report-language-settings .language-control { max-width: 100%; }
 .step-heading { font-size: 20px; margin: 16px 0; }
 .report-review { padding: 16px; border: 1px solid var(--line); border-radius: 10px; line-height: 1.6; }
 .report-review h3 { font-size: 20px; margin: 8px 0; }
@@ -278,8 +296,8 @@ button, a { touch-action: manipulation; }
   .report-modal .modal-head { padding: 0; }
   .report-modal h2 { font-size: 21px; }
   .report-steps { gap: 6px; }
-  .report-steps li { font-size: 12px; gap: 5px; }
-  .report-steps li span { width: 24px; height: 24px; flex: 0 0 24px; }
+  .report-steps li { gap: 4px; }
+  .report-steps li strong { font-size: 13px; }
   .report-modal .modal-foot { padding: 16px 0 0; }
   .modal-foot-actions { width: 100%; }
   .modal-foot-actions > button { flex: 1; }
@@ -383,3 +401,8 @@ button, a { touch-action: manipulation; }
 :root:not([data-theme="dark"]) .app-shell .list-toolbar > span,
 :root:not([data-theme="dark"]) .app-shell .footer-link { color: #35584b; }
 .testing-environment-label { margin: 4px 24px; color: var(--muted); font-size: .75rem; text-align: right; }
+.collection-status { margin: 4px 24px; color: var(--muted); font-size: 12px; max-width: 76ch; }
+.collection-status > summary { cursor: pointer; width: fit-content; max-width: 100%; min-height: 32px; padding: 6px 0; box-sizing: border-box; }
+.collection-status[open] { margin-bottom: 12px; }
+.collection-status p { margin: 6px 0; line-height: 1.55; }
+@media(max-width:760px) { .collection-status { margin-inline: 16px; } .collection-status > summary { min-height: 44px; padding-block: 12px; } }
