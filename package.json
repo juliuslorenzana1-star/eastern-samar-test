@@ -25,7 +25,9 @@
     "test:onboarding": "node --test tests/onboarding.test.mjs",
     "test:onboarding:browser": "node tests/onboarding-browser.mjs",
     "test:interface:browser": "node tests/interface-browser.mjs",
-    "test:redesign:browser": "node tests/redesign-browser.mjs"
+    "test:redesign:browser": "node tests/redesign-browser.mjs",
+    "test:anonymous": "node --test tests/visitor-security.test.mjs tests/visitor.integration.mjs",
+    "test:anonymous:browser": "node tests/visitor-browser.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",
@@ -35,7 +37,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-i18next": "17.1.9",
-    "react-leaflet": "5.0.0"
+    "react-leaflet": "5.0.0",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",

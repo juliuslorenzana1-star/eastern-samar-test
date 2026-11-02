@@ -9,7 +9,9 @@ import {
 import AuthDialog from './components/AuthDialog.jsx';
 import LanguageSelector from './components/LanguageSelector.jsx';
 import CollectionStatus from './components/CollectionStatus.jsx';
-import { personalDataCollectionEnabled } from './lib/collection-policy.js';
+import { personalDataCollectionEnabled, visitorReportingEnabled } from './lib/collection-policy.js';
+import { submitVisitorReport } from './lib/visitor-reports.js';
+import ReportTracking from './components/ReportTracking.jsx';
 import EmergencyHotlineDrawer from './components/EmergencyHotlineDrawer.jsx';
 import ProvincePulse from './components/ProvincePulse.jsx';
 import ReportDialog from './components/ReportDialog.jsx';
@@ -115,6 +117,7 @@ function App() {
   const [navigationTarget, setNavigationTarget] = useState('map');
   const [fullscreenMap, setFullscreenMap] = useState(false);
   const [receipt, setReceipt] = useState(null);
+  const [trackingOpen,setTrackingOpen]=useState(false);
   const [nearby, setNearby] = useState(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
@@ -440,9 +443,9 @@ function App() {
     if (window.innerWidth <= 900 && !['reports', 'submissions'].includes(navigationTarget)) setPanelOpen(false);
   }
   function startReport() {
-    if (!personalDataCollectionEnabled) { setAuthMode('sign-in'); setFormOpen(true); return; }
+    if (!personalDataCollectionEnabled && !visitorReportingEnabled) { setAuthMode('sign-in'); setFormOpen(true); return; }
     if (!isSupabaseConfigured) { setNotice('The shared database is not configured, so reports cannot be accepted yet.'); return; }
-    if (!session?.user) { setAuthMode('sign-in'); setFormOpen(true); setNotice('Sign in to submit a report.'); return; }
+    if (!visitorReportingEnabled && !session?.user) { setAuthMode('sign-in'); setFormOpen(true); setNotice('Sign in to submit a report.'); return; }
     setAuthMode(null);
     setLocation(null); setFormOpen(true); setPanelOpen(false); setNavigationTarget('map'); setView('map');
   }
@@ -450,6 +453,10 @@ function App() {
   function pickPoint(point) { setLocation({ lat: point.lat, lng: point.lng }); setPicking(false); setFullscreenMap(false); setFormOpen(true); setNotice('Location added to the report.'); }
 
   async function submitReport(values) {
+    if(visitorReportingEnabled && !values.useAccount){
+      const saved=await submitVisitorReport(values,values.trackingCredential);
+      setReceipt(saved);setSelected(null);return;
+    }
     const { report, warning, warningMessages } = await createReport(values, session?.user?.id);
     // A successful insert must never be presented as a failed submission when
     // a subsequent refresh fails: retrying would create a second report.
@@ -594,6 +601,7 @@ function App() {
     </header>
     <NetworkStatus />
     <CollectionStatus />
+    {visitorReportingEnabled && <button className="outline-button" onClick={()=>setTrackingOpen(true)}>{t('Track a report')}</button>}
     <section className="dashboard-heading" id="top">
       <div className="heading-copy">
         <span className="eyebrow"><MapPin size={14} />  {t("EASTERN SAMAR · TOGETHER, WE CAN")}</span>
@@ -722,7 +730,7 @@ function App() {
     {welcomeMessage && <div className="welcome-toast" role="status"><span><Check size={13} /></span><div><strong>{t(welcomeMessage)}</strong><small>{t("Ready to make a difference in Eastern Samar?")}</small></div></div>}
     {formOpen && authMode && isSupabaseConfigured && <AuthDialog supabase={supabase} initialMode={authMode} onNotice={setNotice} onAuthenticated={welcomeAfterLogin} onAccountCreated={(user, needsConfirmation) => { if (user?.id) setWelcomeTour({ userId: user.id, name: user.user_metadata?.display_name || '', needsConfirmation }); }} onClose={() => { setFormOpen(false); setAuthMode(null); }} />}
     {welcomeTour && <Suspense fallback={null}><SmartEsteWelcome name={welcomeTour.name} needsConfirmation={welcomeTour.needsConfirmation} exploring={Boolean(welcomeTour.exploring)} onExplore={exploreWelcomeFeature} onResume={resumeWelcomeTour} onFinish={closeWelcomeTour} /></Suspense>}
-    {(formOpen || picking) && !authMode && <ReportDialog userId={sessionUserId} categories={categories} onClose={() => { setFormOpen(false); setPicking(false); }} onSubmit={submitReport} onPickLocation={startPicking} location={location} hidden={picking} onDraftSaved={() => { setOfflineDraftCount(getOfflineDrafts().length); setNotice('Draft saved on this device for your account. Photos are not saved offline. Choose Sync Now when connected.'); }} />}
+    {(formOpen || picking) && !authMode && <ReportDialog visitorMode={visitorReportingEnabled} userId={sessionUserId} categories={categories} onClose={() => { setFormOpen(false); setPicking(false); }} onSubmit={submitReport} onPickLocation={startPicking} location={location} hidden={picking} onDraftSaved={() => { setOfflineDraftCount(getOfflineDrafts().length); setNotice('Draft saved on this device for your account. Photos are not saved offline. Choose Sync Now when connected.'); }} />}
     <footer className="site-footer"><span><HeartPulse size={14} />  {t("Bridging Citizen Voices and Collective Action")}</span><button className="smart-tour-replay" type="button" onClick={() => setWelcomeTour({ userId: sessionUserId, name: profile?.display_name || '', needsConfirmation: false })}><Compass size={15} />  {t("SMART ESTE tour")}</button><span>{isSupabaseConfigured ? t("Shared reports · moderation required") : t("Database connection unavailable")}</span></footer>
     <nav className="mobile-bottom-nav" aria-label={t("Mobile community navigation")}>
       <button aria-current={activeNavigation === 'map' ? 'page' : undefined} onClick={() => navigate('map')}><Compass size={20} /><span>{t("Map")}</span></button>
@@ -731,7 +739,8 @@ function App() {
       <button aria-current={activeNavigation === 'volunteers' ? 'page' : undefined} onClick={() => navigate('volunteers')}><Users size={20} /><span>{t('Volunteer', { context: 'navigation' })}</span></button>
       <button aria-current={activeNavigation === 'profile' ? 'page' : undefined} onClick={() => navigate('profile')}><ShieldCheck size={20} /><span>{t("Profile")}</span></button>
     </nav>
-    {receipt && <ReportReceipt report={receipt} onClose={() => setReceipt(null)} onReports={() => { setReceipt(null); navigate('submissions'); }} onAnother={() => { setReceipt(null); startReport(); }} />}
+    {trackingOpen && <ReportTracking onClose={()=>setTrackingOpen(false)} />}
+    {receipt && <ReportReceipt report={receipt} onClose={() => setReceipt(null)} onReports={() => { const visitor=Boolean(receipt.trackingCredential);setReceipt(null);if(visitor)setTrackingOpen(true);else navigate('submissions'); }} onAnother={() => { setReceipt(null); startReport(); }} />}
     {selected && ['reports', 'submissions'].includes(navigationTarget) && <ReportDetailsDialog report={selected} categoryName={categoryNames[selected.category_slug] ?? selected.category_slug} markerColor={categoryVisual(selected.category_slug, theme).color} statusColorValue={statusColor(selected.status, theme)} canViewEvidence={isStaff || myReports.some(report => report.id === selected.id)} decision={showSubmissions ? decisionText(selected) : undefined} onClose={() => setSelected(null)} />}
     <EmergencyHotlineDrawer
       isOpen={hotlinesOpen}

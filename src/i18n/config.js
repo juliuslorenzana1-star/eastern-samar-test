@@ -5,7 +5,12 @@ import english from '../locales/en/translation.json' with { type: 'json' };
 export const LANGUAGE_STORAGE_KEY = 'escam.language';
 export const LANGUAGES = [{ code: 'en', label: 'English', short: 'EN' }, { code: 'fil', label: 'Filipino', short: 'FIL' }, { code: 'war', label: 'Waray-Waray — Boronganon', short: 'WAR' }];
 const supported = new Set(LANGUAGES.map(item => item.code));
-const loaders = { fil: () => import('../locales/fil/translation.json', { with: { type: 'json' } }), war: () => import('../locales/war/translation.json', { with: { type: 'json' } }) };
+// Vite serves JSON imports as JavaScript modules during development. Browser
+// JSON import assertions reject that MIME type. Node's direct tests still need
+// the assertion; production bundling resolves the asserted imports normally.
+const loaders = import.meta.env?.DEV
+  ? { fil: () => import('../locales/fil/translation.json'), war: () => import('../locales/war/translation.json') }
+  : { fil: () => import('../locales/fil/translation.json', { with: { type: 'json' } }), war: () => import('../locales/war/translation.json', { with: { type: 'json' } }) };
 const canonical = new Map(Object.keys(english).map(key => [key.toLowerCase(), key]));
 const storedMessages = new Map();
 i18n.use(initReactI18next).init({

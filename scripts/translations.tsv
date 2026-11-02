@@ -1078,7 +1078,7 @@ Profiles	Mga Profile	Mga Profile
 Volunteer Registrations	Mga Rehistro ng Boluntaryo	Mga Pagrehistro han Volunteer
 Report saved, but the list could not refresh. Please refresh later to see updates.	Nai-save ang ulat ngunit hindi ma-refresh ang listahan. I-refresh mamaya para makita ang pagbabago.	Na-save an report pero diri ma-refresh an lista. I-refresh ha urhi basi makita an pagbag-o.
 Personal information collection is paused pending privacy readiness. Use fictional data only in the isolated demonstration.	Pansamantalang itinigil ang pangongolekta ng personal na impormasyon habang inaayos ang mga kinakailangan sa pagkapribado. Gumamit lamang ng kathang-isip na datos sa hiwalay na demonstrasyon.	Gin-undang anay an pagtirok hin personal nga impormasyon samtang gin-aandam an mga kinahanglanon ha pagkapribado. Gamit la hin hinimo-himo nga datos ha bulag nga demonstrasyon.
-Public submissions are paused pending privacy readiness. Authorized testing uses a separate restricted environment.	Nakapahinto ang pampublikong pagsusumite habang inaayos ang mga kinakailangan sa pagkapribado. Ang awtorisadong pagsubok ay gumagamit ng hiwalay at limitadong kapaligiran.	Gin-undang anay an pampubliko nga pagsumite samtang gin-aandam an pagkapribado. An gintugotan nga pagtesting nagamit hin bulag ngan limitado nga sistema.
+Public submissions are temporarily unavailable while privacy requirements are being completed.	Pansamantalang hindi available ang pampublikong pagsusumite habang kinukumpleto ang mga kinakailangan sa pagkapribado.	Diri anay magagamit an pampubliko nga pagsumite samtang ginkukumpleto an mga kinahanglanon ha pagkapribado.
 Testing environment · authorized testers only	Kapaligiran ng pagsubok · para lamang sa awtorisadong tagasubok	Sistema ha pagtesting · para la ha gintugotan nga mga tester
 Database connection unavailable	Hindi makakonekta sa database	Diri makakonektar ha database
 Volunteer listings need a database connection.	Kailangan ng koneksyon sa database para sa mga aktibidad ng boluntaryo.	Kinahanglan hin koneksyon ha database para ha mga buruhaton han mga boluntaryo.
@@ -1093,3 +1093,37 @@ Step {{step}}	Hakbang {{step}}	Lakang {{step}}
 Fictional test data	Kathang-isip na datos sa pagsubok	Hinimo nga datos para ha pagsari
 Public reporting unavailable	Hindi pa bukas ang pampublikong pag-uulat	Diri pa abrido an pagreport han publiko
 A verified privacy contact, confirmed operator and approved retention schedule are required before public collection opens.	Kailangan muna ang beripikadong contact para sa privacy, kumpirmadong operator, at aprubadong iskedyul ng pag-iingat at pagbura ng datos bago buksan ang pampublikong pangongolekta.	Kinahanglan anay an napamatud-an nga kontak para ha pribasiya, kumpirmado nga tagdumara, ngan aprobado nga iskedyul han pagtipig ngan pagtanggal han datos antes abrihan an pagtirok hin datos tikang ha publiko.
+
+Privacy, correction, deletion and takedown requests:	Mga kahilingan sa pagkapribado, pagwawasto, pagbura at pagtanggal ng ulat:	Mga hangyo ha pagkapribado, pagtadong, pagpapara ngan pagtanggal hin report:
+Anonymous reporting does not hide technical logs. Report text, photos and locations can identify people. Do not include unnecessary personal information.	Hindi itinatago ng anonymous reporting ang mga teknikal na log. Maaaring makakilala ng tao ang teksto, larawan at lokasyon. Huwag magsama ng hindi kailangang personal na impormasyon.	An pagsumite nga waray ngaran diri nagtatago han teknikal nga mga log. An teksto, litrato ngan lokasyon mahimo makakilala hin tawo. Ayaw pagbutang hin diri kinahanglan nga personal nga impormasyon.
+Anonymous — no account required	Anonymous — walang kailangang account	Waray ngaran — diri kinahanglan hin account
+Confidential — optional follow-up contact	Kumpidensyal — opsyonal na contact para sa follow-up	Kompidensyal — opsyonal nga kontak para ha follow-up
+Name (optional)	Pangalan (opsyonal)	Ngaran (opsyonal)
+Email (optional)	Email (opsyonal)	Email (opsyonal)
+Phone (optional)	Telepono (opsyonal)	Telepono (opsyonal)
+Reporting identity	Pagkakakilanlan sa pag-uulat	Pagkilala ha nagsusumite
+Contact details are optional and visible only to authorized moderators, never on the public map.	Opsyonal ang contact at mga awtorisadong moderator lamang ang makakakita nito, hindi sa pampublikong mapa.	Opsyonal an detalye han kontak ngan an awtorisado la nga mga moderator an makakakita, diri ha pampubliko nga mapa.
+JPEG, PNG or WebP up to 2 MB. Anonymous photos are private to authorized staff. Location metadata is removed by the server.	JPEG, PNG o WebP hanggang 2 MB. Awtorisadong kawani lamang ang makakakita ng anonymous na larawan. Inaalis ng server ang metadata ng lokasyon.	JPEG, PNG o WebP tubtob 2 MB. Awtorisado la nga mga kawani an makakakita han litrato nga waray ngaran. Gintatanggal han server an metadata han lokasyon.
+Private tracking credential	Pribadong tracking code	Pribado nga tracking code
+Track a report	Subaybayan ang ulat	Subaybaya an report
+Check status	Tingnan ang katayuan	Kitaa an kahimtang
+Your tracking credential is private. Anyone with it can read your report status and feedback. It cannot be recovered through an account.	Pribado ang tracking code. Sinumang may hawak nito ay makakabasa ng katayuan at tugon sa ulat. Hindi ito mababawi gamit ang account.	Pribado an tracking code. Bisan hin-o nga may-ada hini makakabasa han kahimtang ngan baton ha report. Diri ini mababawi pinaagi hin account.
+Save this credential somewhere private before closing. It is not stored in this browser and cannot be recovered. Anyone with it can read status and resident-facing feedback.	Itago nang pribado ang code bago isara. Hindi ito nakaimbak sa browser at hindi mababawi. Sinumang may hawak nito ay makakabasa ng katayuan at tugon para sa residente.	Tipigi ini nga code ha pribado nga lugar antes magsara. Diri ini gintitipigan hini nga browser ngan diri mababawi. Bisan hin-o nga may-ada hini makakabasa han kahimtang ngan baton para ha residente.
+Your report is saved, but its photo could not be confirmed saved. Keep your tracking credential; do not submit a duplicate report.	Nai-save ang ulat ngunit hindi nakumpirmang nai-save ang larawan. Itago ang tracking code; huwag muling isumite ang parehong ulat.	Natipigan an report pero waray makumpirma nga natipigan an litrato. Tipigi an tracking code; ayaw pagsumite hin kapariho nga report.
+Loading confidential contact…	Kinukuha ang kumpidensyal na contact…	Ginkukuha an kompidensyal nga kontak…
+Confidential contact could not be loaded. Check moderator access and the database migration.	Hindi makuha ang kumpidensyal na contact. Suriin ang access ng moderator at database migration.	Diri makuha an kompidensyal nga kontak. Kitaa an akses han moderator ngan database migration.
+Confidential follow-up contact	Kumpidensyal na contact para sa follow-up	Kompidensyal nga kontak para ha follow-up
+For authorized follow-up only. Never copy contact details into public report fields or resident-facing notes.	Para lamang sa awtorisadong follow-up. Huwag kopyahin ang contact sa pampublikong ulat o tugon para sa residente.	Para la ha awtorisado nga follow-up. Ayaw pagkopya han kontak ngadto ha pampubliko nga report o mga nota para ha residente.
+No contact details supplied.	Walang ibinigay na contact.	Waray iginhatag nga kontak.
+Please wait before trying again. The reporting allowance has been reached.	Maghintay bago subukang muli. Naabot na ang limitasyon ng pag-uulat.	Paghulat anay antes utro magsari. Naabot na an limitasyon han pagsumite.
+No report matches that tracking credential.	Walang ulat na tumutugma sa tracking code.	Waray report nga natugma hito nga tracking code.
+Use a valid JPEG, PNG or WebP photo.	Gumamit ng wastong JPEG, PNG o WebP na larawan.	Paggamit hin husto nga JPEG, PNG o WebP nga litrato.
+For anonymous reports, use a photo up to 2 MB.	Para sa anonymous na ulat, gumamit ng larawang hanggang 2 MB.	Para ha report nga waray ngaran, paggamit hin litrato tubtob 2 MB.
+Check the optional contact details.	Suriin ang opsyonal na contact.	Kitaa an opsyonal nga detalye han kontak.
+Check the report details and try again.	Suriin ang mga detalye ng ulat at subukang muli.	Kitaa an mga detalye han report ngan utro pagsari.
+Enter your complete private tracking credential.	Ilagay ang buong pribadong tracking code.	Ibutang an bug-os nga pribado nga tracking code.
+Reporting is currently unavailable. Your details have not been confirmed saved.	Kasalukuyang hindi available ang pag-uulat. Hindi nakumpirmang nai-save ang iyong mga detalye.	Diri anay magagamit an pagsumite. Waray makumpirma nga natipigan an imo mga detalye.
+The photo could not be read.	Hindi mabasa ang larawan.	Diri mabasa an litrato.
+Download private receipt	I-download ang pribadong resibo	I-download an pribado nga resibo
+Use my signed-in account	Gamitin ang naka-sign in kong account	Gamita an akon naka-sign in nga account
+This report will be linked privately to your account and available under My submissions.	Pribadong iuugnay ang ulat sa iyong account at makikita sa Aking mga ulat.	Pribado nga ikakaw-ing ini nga report ha imo account ngan makikita ha Akon mga report.

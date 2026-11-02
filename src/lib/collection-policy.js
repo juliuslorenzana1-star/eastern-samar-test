@@ -8,11 +8,21 @@ export function resolveCollectionPolicy(env = {}) {
   const local = url === 'http://127.0.0.1:54321';
   const isolated = kind === 'staging' && (local || /^[a-z]{20}$/.test(ref || '') && url === `https://${ref}.supabase.co` && !protectedRefs.includes(ref));
   const fixtures = url === 'https://demo.invalid' || kind === 'fixtures' && url === 'https://qa-fixtures.supabase.co';
-  return { kind: isolated ? 'staging' : fixtures ? 'fixtures' : 'public', isolated, writable: fixtures || isolated && env.VITE_ENABLE_PERSONAL_DATA_COLLECTION === 'true' };
+  const publicApproved = kind === 'public' && env.VITE_PUBLIC_REPORTING_RELEASE_APPROVED === 'true'
+    && env.VITE_PUBLIC_PROJECT_REF === 'xoitncotbgobcsdmvyjb'
+    && url === 'https://xoitncotbgobcsdmvyjb.supabase.co';
+  return { kind: isolated ? 'staging' : fixtures ? 'fixtures' : 'public', isolated, publicApproved, writable: fixtures || (isolated || publicApproved) && env.VITE_ENABLE_PERSONAL_DATA_COLLECTION === 'true' };
+}
+export function resolveVisitorReporting(env={}) {
+  const policy=resolveCollectionPolicy(env);
+  return env.VITE_ENABLE_ANONYMOUS_REPORTING === 'true' && (policy.isolated || policy.publicApproved);
 }
 export const collectionPolicy = resolveCollectionPolicy(import.meta.env);
 export const personalDataCollectionEnabled = collectionPolicy.writable;
-export const collectionPauseMessage = 'Public submissions are paused pending privacy readiness. Authorized testing uses a separate restricted environment.';
+// Separate opt-in: legacy account workflows and fictional rehearsals stay intact.
+// Public activation requires an explicitly approved release on the server too.
+export const visitorReportingEnabled = resolveVisitorReporting(import.meta.env);
+export const collectionPauseMessage = 'Public submissions are temporarily unavailable while privacy requirements are being completed.';
 export function requirePersonalDataCollection() {
   if (!personalDataCollectionEnabled) throw new Error(collectionPauseMessage);
 }

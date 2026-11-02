@@ -6,6 +6,16 @@ Internal provisional designation, supplied by the developer: **Julius Lorenzana 
 
 No incomplete privacy notice or placeholder contact is published by this work. The application already contains limited reporting/privacy guidance; that guidance does not replace a complete notice or an operational rights-request process.
 
+## Updated owner proposals — 2 November 2026
+
+The owner has proposed **Julius Yexel A. Lorenzana** as individual operator/controller, conditional on accurately reflecting responsibility. This supersedes the older provisional name above for drafting, but is not unconditional confirmation. The designated privacy contact is **juliuslorenzana1@gmail.com**; receipt, monitoring and reply capability still need verification. Do not send an email on the owner's behalf without authorization.
+
+Proposed retention: reports two years after resolution/closure, photos up to two years after closure with earlier safety/privacy removal, accounts while active with a target of 30 days for verified deletion requests, moderation records three years after closure. These are subject to final review, not activated deletion rules. Backups, logs, volunteer data, contacts, unresolved reports and hold handling still need decisions.
+
+The owner additionally requires no-registration anonymous reporting by default and optional confidential identified reporting, with no public reporter identity/contact disclosure. These original blockers are now addressed by a locally tested anonymous ingress migration and browser workflow; neither is deployed or activated. See ANONYMOUS_REPORTING_IMPLEMENTATION.md. Do not solve this by opening anonymous table/storage INSERT access or fabricating a shared reporter account.
+
+See [the internal policy draft](PRIVACY_POLICY_DRAFT.md) and [public release preparation](PUBLIC_RELEASE_PREPARATION.md). No incomplete public notice is published. The contact link alone is not the complete notice.
+
 Before public collection can resume, the owner must approve and verify:
 
 1. A functioning contact address for privacy, correction, deletion and takedown requests, including a real end-to-end receipt/reply test.
@@ -20,7 +30,7 @@ The default build fails closed for account form requests, report creation, volun
 
 The client gate is an operational safeguard, **not server authorization**. A public browser can bypass client code. Existing deployed code and direct provider endpoints are unchanged. Collection has **not** been verified disabled on production by this task.
 
-`VITE_ENABLE_PERSONAL_DATA_COLLECTION=true` now requires an explicitly identified separate staging backend (or an isolated fixture harness). It cannot enable collection against the protected existing application projects. Do not set it on a public deployment until all gates and backend restrictions have been reviewed. No such provider environment setting was changed here.
+`VITE_ENABLE_PERSONAL_DATA_COLLECTION=true` now requires an explicitly identified separate staging backend (or an isolated fixture harness). Public activation now has a separately reviewed code path requiring explicit release approval and the exact intended project reference; ordinary staging flags cannot enable collection against existing application projects. Do not set it on a public deployment until all gates and backend restrictions have been reviewed. No such provider environment setting was changed here.
 
 ## Production restriction plan — requires separate explicit authorization
 

@@ -199,7 +199,7 @@ test('one-time production repair upgrades the inspected legacy shape without rep
   try {
     await bootstrapDatabase(db);
     const directory=new URL('../supabase/migrations/',import.meta.url);
-    const names=(await readdir(directory)).filter(name=>name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair/.test(name)).sort();
+    const names=(await readdir(directory)).filter(name=>name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair|anonymous_reporting_ingress/.test(name)).sort();
     for(const name of names)await db.exec(await readFile(new URL(name,directory),'utf8'));
     const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     await db.exec(`insert into auth.users(id) values('${owner}'); select set_config('request.jwt.claim.sub','${owner}',false);`);
@@ -223,7 +223,7 @@ test('recognition repair works on legacy schema, protects identity, ranks ties a
   try {
     await bootstrapDatabase(db);
     const directory = new URL('../supabase/migrations/',import.meta.url);
-    for (const name of (await readdir(directory)).filter(name => name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair/.test(name)).sort()) await db.exec(await readFile(new URL(name,directory),'utf8'));
+    for (const name of (await readdir(directory)).filter(name => name.endsWith('.sql') && !/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair|anonymous_reporting_ingress/.test(name)).sort()) await db.exec(await readFile(new URL(name,directory),'utf8'));
     const sql = await readFile(new URL('20261024183629_community_recognition.sql',directory),'utf8');
     await db.exec(sql);
     await db.exec(sql); // Additive repair is safe to retry.
@@ -281,7 +281,7 @@ registerModerationRpcTests(bootstrapDatabase);
 test('review-only read RPCs repair the legacy timeline and protect aggregate/private boundaries',async()=>{
   const db=new PGlite();try{
     await bootstrapDatabase(db);const dir=new URL('../supabase/migrations/',import.meta.url);
-    const names=(await readdir(dir)).filter(n=>n.endsWith('.sql')&&!/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair/.test(n)).sort();
+    const names=(await readdir(dir)).filter(n=>n.endsWith('.sql')&&!/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair|anonymous_reporting_ingress/.test(n)).sort();
     for(const name of names)await db.exec(await readFile(new URL(name,dir),'utf8'));
     const repair=(await readdir(dir)).find(n=>n.endsWith('_moderate_report_contract_repair.sql'));await db.exec(await readFile(new URL(repair,dir),'utf8'));
     const resident='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222',staff='33333333-3333-4333-8333-333333333333';

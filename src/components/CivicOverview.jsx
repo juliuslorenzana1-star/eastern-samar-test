@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ArrowRight, MapPin, ShieldCheck, Users } from 'lucide-react';
 import { useState } from 'react';
 import PlatformStatistics from './PlatformStatistics.jsx';
+import { privacyPolicy } from '../lib/privacy-policy.js';
 
 export default function CivicOverview({ reports, activities, staff, onReport, onMap, onVolunteer }) {
   useTranslation();
@@ -30,6 +31,7 @@ export default function CivicOverview({ reports, activities, staff, onReport, on
       <p>{t("Published counts come from database records loaded in this session. Private reports are excluded. This community platform does not claim government endorsement. Review decisions are made by authorized people; automated flags, when available, are advisory.")}</p>
     </details>
     <p className="emergency-disclaimer">{t("This platform is not a substitute for emergency services. Reports are not monitored as an emergency dispatch channel.")}</p>
+    <p className="privacy-contact">{t('Privacy, correction, deletion and takedown requests:')} <a href={`mailto:${privacyPolicy.contact}`}>{privacyPolicy.contact}</a></p>
     <details className="civic-guide" id="privacy"><summary>{t("Privacy and reporting guidelines")}</summary><p>{t("Describe observable conditions. Do not include personal allegations, contact details, faces of vulnerable people, or information that could identify a victim. Only approved reports appear publicly. Exact map points, evidence and internal notes are restricted. Public map coordinates are approximate.")}</p><p>{t("Evidence stays private to its reporter and authorized staff. Signing out clears account views; offline drafts remain on this device until synced or deleted. Use a trusted device for sensitive drafts. Contact the platform operator about correction or deletion requests.")}</p><p>{t("Municipality boundaries are geographic reference data, not a legal survey. Barangay names are resident supplied unless explicitly identified as verified boundary data.")}</p></details>
   </section>;
 }

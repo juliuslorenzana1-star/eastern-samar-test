@@ -33,7 +33,8 @@ const injected = source.replace("import { supabase } from './supabase.js';", 'co
   .replace("'./report-validation.js'", JSON.stringify(new URL('../src/lib/report-validation.js', import.meta.url).href))
   .replace("'./categories.js'", JSON.stringify(new URL('../src/lib/categories.js', import.meta.url).href));
 // These workflow tests explicitly exercise the approved/staging branch of the gate.
-const withPolicy = injected.replace("import { requirePersonalDataCollection } from './collection-policy.js';", 'const requirePersonalDataCollection = () => {};');
+const withPolicy = injected.replace("import { requirePersonalDataCollection } from './collection-policy.js';", 'const requirePersonalDataCollection = () => {};')
+  .replace("import { visitorReportingEnabled } from './collection-policy.js';", 'const visitorReportingEnabled = false;');
 const reports = await import('data:text/javascript;base64,' + Buffer.from(withPolicy).toString('base64'));
 
 test('missing ownership RPC and denied owner lookup fail closed', async () => {

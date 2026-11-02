@@ -6,7 +6,7 @@ export function assertSafeClientEnv(env) {
   }
   for (const [name,value] of Object.entries(env)) {
     if (!name.startsWith('VITE_') || !value) continue;
-    if (/OPENAI|ANTHROPIC|RESEND|AI_API|SERVICE_ROLE|SECRET|PRIVATE_KEY|ACCESS_TOKEN/i.test(name)
+    if (/OPENAI|ANTHROPIC|RESEND|AI_API|SERVICE_ROLE|SECRET|PRIVATE_KEY|ACCESS_TOKEN|HMAC/i.test(name)
       || /^(sk-|sb_secret_|re_[A-Za-z0-9]{20,}|gh[pousr]_|github_pat_)/.test(String(value))) {
       throw new Error('Secret credentials must not be configured in VITE_ client environment variables.');
     }

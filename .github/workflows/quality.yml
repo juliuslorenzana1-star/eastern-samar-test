@@ -22,11 +22,13 @@ jobs:
       - run: npm run typecheck:functions
       - run: npm test
       - run: npm run test:database
+      - run: npm run test:anonymous
       - run: npm run build
       - run: npx playwright-core install --with-deps chromium
       - run: npm run test:browser
       - run: npm run test:moderation:browser
       - run: npm run test:readiness
+      - run: npm run test:anonymous:browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:

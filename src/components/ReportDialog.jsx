@@ -7,8 +7,10 @@ import { validateEvidenceFile } from '../lib/reports.js';
 import { saveOfflineDraft } from '../lib/offline-drafts.js';
 import useDialogFocus from '../lib/useDialogFocus.js';
 import LanguageSelector from './LanguageSelector.jsx';
+import { newTrackingCredential } from '../lib/visitor-reports.js';
+import { personalDataCollectionEnabled } from '../lib/collection-policy.js';
 
-export default function ReportDialog({ categories, location, hidden, userId, onClose, onPickLocation, onSubmit, onDraftSaved }) {
+export default function ReportDialog({ categories, location, hidden, userId, visitorMode = false, onClose, onPickLocation, onSubmit, onDraftSaved }) {
   useTranslation();
   const [form, setForm] = useState({ title: '', category: '', municipality: '', barangay: '', description: '', incidentAt: '', neededBy: '', priority: 'normal' });
   const [evidence, setEvidence] = useState(null);
@@ -16,6 +18,10 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(1);
+  const [identity,setIdentity]=useState('anonymous');
+  const identified=identity==='confidential';
+  const [contact,setContact]=useState({name:'',email:'',phone:''});
+  const [trackingCredential]=useState(newTrackingCredential);
   const stepHeading = useRef(null);
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
   const dialogRef = useDialogFocus({ active: !hidden, busy, onClose, preserveOpener: true });
@@ -102,6 +108,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
         incidentAt: form.incidentAt ? new Date(form.incidentAt).toISOString() : null,
         evidence,
         location,
+        ...(visitorMode ? { contact:identified ? contact : {},trackingCredential,useAccount:identity==='account' } : {}),
       });
       onClose();
     } catch (submitError) {
@@ -135,6 +142,12 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
         <form onSubmit={submit}>
           <fieldset className="report-form-section" disabled={busy || step !== 1} hidden={step !== 1}>
           <legend className="sr-only">{t("What needs attention?")}</legend>
+          {visitorMode && <div className="report-identity">
+            <label className="field-label">{t('Reporting identity')}<select value={identity} onChange={event=>{setIdentity(event.target.value);setContact({name:'',email:'',phone:''});}}><option value="anonymous">{t('Anonymous — no account required')}</option><option value="confidential">{t('Confidential — optional follow-up contact')}</option>{userId && personalDataCollectionEnabled && <option value="account">{t('Use my signed-in account')}</option>}</select></label>
+            {identity==='account' && <p>{t('This report will be linked privately to your account and available under My submissions.')}</p>}
+            <p>{t('Anonymous reporting does not hide technical logs. Report text, photos and locations can identify people. Do not include unnecessary personal information.')}</p>
+            {identified && <><p>{t('Contact details are optional and visible only to authorized moderators, never on the public map.')}</p>{['name','email','phone'].map(key=><label className="field-label" key={key}>{t({name:'Name (optional)',email:'Email (optional)',phone:'Phone (optional)'}[key])}<input type={key==='email'?'email':key==='phone'?'tel':'text'} autoComplete="off" maxLength={key==='email'?254:key==='phone'?32:100} value={contact[key]} onChange={event=>setContact(current=>({...current,[key]:event.target.value}))} /></label>)}</>}
+          </div>}
           <label className="field-label">{t("Concern title")} <input name="title" maxLength="120" minLength="6" required value={form.title} onChange={update} placeholder={t("What needs attention?")} />
           </label>
           <div className="form-row">
@@ -147,7 +160,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
           </label>
           <label className="field-label photo-field">{t("Supporting photo")} <span className="optional-label">{t("Optional, private")}</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseEvidence} />
-            <span className="field-hint">{t("JPEG, PNG, or WebP up to 5 MB. Photos remain private to you and authorized staff.")}</span>
+            <span className="field-hint">{visitorMode && identity!=='account' ? t('JPEG, PNG or WebP up to 2 MB. Anonymous photos are private to authorized staff. Location metadata is removed by the server.') : t("JPEG, PNG, or WebP up to 5 MB. Photos remain private to you and authorized staff.")}</span>
           </label>
           {preview && <img className="evidence-preview" src={preview} alt={t("Preview of selected evidence")} />}
           </fieldset>
@@ -183,6 +196,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
           </div>
           </fieldset>
           {step === 3 && <section className="report-review" aria-label={t("Report review")}>
+            {visitorMode && <div className="report-identity"><strong>{identity==='account'?t('Use my signed-in account'):identified?t('Confidential — optional follow-up contact'):t('Anonymous — no account required')}</strong>{identified && <p>{[contact.name,contact.email,contact.phone].filter(Boolean).join(' · ')}</p>}</div>}
             {preview && <img className="evidence-preview" src={preview} alt={t("Photo attached to this report")} />}
             <span className="eyebrow">{t(categories.find(category => category.slug === selectedCategory)?.name)}</span><h3>{form.title}</h3><p><MapPin size={16} />{[form.barangay, form.municipality].filter(Boolean).join(', ')}</p><p className="review-description">{form.description}</p>
             <dl><dt>{t("Urgency")}</dt><dd>{t({ low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' }[form.priority])}</dd><dt>{t("Map point")}</dt><dd>{location ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : t("Not supplied")}</dd>{form.incidentAt && <><dt>{t("Incident")}</dt><dd>{form.incidentAt.replace('T', ' ')}</dd></>}{form.neededBy && <><dt>{t("Needed by")}</dt><dd>{form.neededBy}</dd></>}</dl><button type="button" className="outline-button" onClick={() => setStep(1)}>{t("Edit details")}</button><button type="button" className="outline-button" onClick={() => setStep(2)}>{t("Edit location")}</button>
@@ -192,7 +206,7 @@ export default function ReportDialog({ categories, location, hidden, userId, onC
             <span><ShieldCheck size={14} />  {t("Private until reviewed")}</span>
             <div className="modal-foot-actions">
               {step > 1 && <button className="outline-button" type="button" disabled={busy} onClick={() => setStep(current => current - 1)}>{t("Back")}</button>}
-              {(isOffline || error) && (
+              {(!visitorMode || identity==='account') && (isOffline || error) && (
                 <button
                   type="button"
                   className="outline-button offline-save-btn"

@@ -4,6 +4,8 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import useDialogFocus from '../lib/useDialogFocus.js';
 import AuditHistory from './AuditHistory.jsx';
 import LanguageSelector from './LanguageSelector.jsx';
+import VisitorContact from './VisitorContact.jsx';
+import { visitorReportingEnabled } from '../lib/collection-policy.js';
 import { AlertTriangle, Check, Clock3, FileText, MapPin, Search, ShieldCheck, X } from 'lucide-react';
 import { formatStatus, publicReportStatuses, reportPriorities, reportStatuses } from '../lib/reports.js';
 import { MUNICIPALITIES } from '../lib/place.js';
@@ -442,6 +444,7 @@ export default function ModeratorDashboard({ reports, initialReportId = null, ca
         <div className="review-detail-meta"><span>{t(categoryNames[selected.category_slug] ?? selected.category_slug)}</span><span><MapPin size={13} />{selected.barangay ? `${selected.barangay}, ` : ''}{selected.municipality}</span><span>{new Date(selected.created_at).toLocaleString(locale())}</span></div>
         <p className="review-description">{selected.description}</p>
         {selected.needed_by && <p className="review-needed-by">{t("Needed by")} {new Date(`${selected.needed_by}T12:00:00`).toLocaleDateString(locale())}</p>}
+        {visitorReportingEnabled && <VisitorContact key={selected.id} reportId={selected.id} />}
         {evidence.length > 0 && <div className="evidence-gallery">{evidence.map((item) => <a href={item.url} target="_blank" rel="noreferrer" key={item.id}><img src={item.url} alt={t("Private evidence attached to this report")} /></a>)}</div>}
         <section className="ai-review-panel" aria-label={t("Automated screening advisory")}>
           <div className="ai-review-heading"><strong>{t("Automated screening")}</strong><span>{t("Advisory only · human decision required")}</span></div>

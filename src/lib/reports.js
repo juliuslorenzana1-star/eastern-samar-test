@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { requirePersonalDataCollection } from './collection-policy.js';
+import { visitorReportingEnabled } from './collection-policy.js';
 import { validateReport } from './report-validation.js';
 import { categoryLabel } from './categories.js';
 import { t } from '../i18n/config.js';
@@ -81,7 +82,7 @@ export async function validateEvidenceFile(file) {
 export async function fetchPublicReports({ offset = 0 } = {}) {
   if (!supabase) return [];
   const { data, error } = await supabase
-    .from('reports')
+    .from(visitorReportingEnabled ? 'public_report_feed' : 'reports')
     .select(reportColumns)
     .eq('is_public', true)
     .in('status', publicReportStatuses)

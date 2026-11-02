@@ -1,0 +1,5 @@
+[
+  { "id": "fictional-report", "category": "report", "status": "resolved", "closedAt": "2024-01-01T00:00:00Z", "hold": false },
+  { "id": "fictional-photo", "category": "photo", "status": "resolved", "closedAt": "2024-01-01T00:00:00Z", "hold": true },
+  { "id": "fictional-account", "category": "account", "verifiedDeletionRequestedAt": "2026-10-01T00:00:00Z", "hold": false }
+]

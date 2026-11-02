@@ -23,7 +23,7 @@ async function loadReports(responses) {
     `const supabase = globalThis[${JSON.stringify(transportKey)}];`,
   );
   try {
-    const withPolicy = injected.replace("'./collection-policy.js'", JSON.stringify(new URL('../src/lib/collection-policy.js', import.meta.url).href));
+    const withPolicy = injected.replaceAll("'./collection-policy.js'", JSON.stringify(new URL('../src/lib/collection-policy.js', import.meta.url).href));
     const reports = await import('data:text/javascript;base64,' + Buffer.from(withPolicy).toString('base64'));
     return { reports, calls };
   } finally {
