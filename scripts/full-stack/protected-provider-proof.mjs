@@ -50,4 +50,10 @@ try{
     const visitor=make(env.VITE_SUPABASE_PUBLISHABLE_KEY);const visible=await checked(visitor.from('public_report_feed').select('id').eq('id',report.id),'Hosted public exclusion');assert.equal(visible.length,0);
     console.log('HOSTED_PROVIDER_PROOF '+JSON.stringify({run,reportId:report.id,realPasswordLogin:true,realStorage:true,moderatorEvidence:true,residentDenied:true,privateModeration:true,tracking:true,publicTestDistribution:false}));
   }
-}catch(error){console.error('HOSTED_PROVIDER_FAILURE '+safeError(error));process.exitCode=1;}
+}catch(error){
+  for(const id of Object.values(ids)){
+    await admin.from('profiles').update({role:'resident'}).eq('id',id);
+    await admin.auth.admin.updateUserById(id,{ban_duration:'876000h'});
+  }
+  console.error('HOSTED_PROVIDER_FAILURE '+safeError(error));process.exitCode=1;
+}
