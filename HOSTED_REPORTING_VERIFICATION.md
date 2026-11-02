@@ -1,5 +1,13 @@
 # Hosted reporting verification — 2 November 2026
 
+## Public activation update
+
+The owner subsequently explicitly approved activation and confirmed the operator, working inbox and retention schedule in chat. Inbox verification is owner-attested, not independently performed. Legal review and technical-log/backup retention are not represented as verified. Automatic deletion remains disabled.
+
+Production collection was enabled and deployment `dpl_AWzKGSU2XKmYwcaCeABUaypc21ZV` reached READY at commit `030a49fb2f86b49eb18827956c58c056993bb08a`. The canonical live site opens the report form with anonymous selected at 390px, without overflow or browser errors. A non-writing invalid-operation request returned HTTP 400 instead of the collection-disabled response. No live report was submitted or published during this activation check. Previous protected hosted end-to-end results remain the write-path evidence. Security protections and disabled AI/email integrations remain unchanged. Preview environment collection flags remain off.
+
+The disabled-status and approval requirements below are the historical pre-activation handoff; this update supersedes them. Owner confirmations are recorded in `src/lib/privacy-policy.js`, with legal review explicitly false.
+
 This supersedes the production-status statements in `FULL_STACK_RELEASE_RESULT.md`; its isolated test results remain historical evidence. Public reporting remains disabled, as explicitly requested. This is not public-release approval or a billing audit.
 
 ## Completed
