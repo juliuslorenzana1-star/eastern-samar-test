@@ -6,7 +6,7 @@ import { collectionPauseMessage, collectionPolicy, personalDataCollectionEnabled
 // Keep the public gate intact and never label an unrestricted public site staging.
 export default function CollectionStatus() {
   useTranslation();
-  if (collectionPolicy.kind === 'staging') return <p className="testing-environment-label">{t('Testing environment · authorized testers only')}</p>;
+  if (collectionPolicy.kind === 'staging' || import.meta.env?.VITE_PROTECTED_TEST_ENVIRONMENT === 'true') return <p className="testing-environment-label">{t('Testing environment · authorized testers only')}</p>;
   if (collectionPolicy.kind === 'fixtures') return <p className="testing-environment-label">{t('Fictional test data')}</p>;
   if (personalDataCollectionEnabled || visitorReportingEnabled) return null;
   return <details className="collection-status">
