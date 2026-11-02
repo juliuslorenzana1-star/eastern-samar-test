@@ -8,11 +8,15 @@ on:
         description: Run the isolated full Supabase Docker proof without production credentials
         type: boolean
         default: false
+      load_test:
+        description: Run bounded 1000-user protocol load against isolated loopback Supabase only
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   verify:
-    if: github.ref != 'refs/heads/codex/full-stack-verification' && (github.event_name != 'workflow_dispatch' || !inputs.full_supabase)
+    if: github.ref != 'refs/heads/codex/full-stack-verification' && (github.event_name != 'workflow_dispatch' || (!inputs.full_supabase && !inputs.load_test))
     runs-on: ubuntu-latest
     env:
       VITE_APP_ENVIRONMENT: fixtures
@@ -65,5 +69,27 @@ jobs:
       - name: Verify actual Auth, Storage, PostgREST and application workflows
         run: node scripts/full-stack/verify.mjs
       - name: Stop only the dedicated test stack, preserving its volumes
+        if: always()
+        run: node scripts/full-stack/local-stack.mjs --stop
+  isolated-load-test:
+    if: github.event_name == 'workflow_dispatch' && inputs.load_test && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SUPABASE_TELEMETRY_DISABLED: '1'
+      DO_NOT_TRACK: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Start dedicated unlinked loopback stack
+        run: node scripts/full-stack/local-stack.mjs --start
+      - name: Ramp browsing to 1000 virtual users and check submission protection
+        run: node scripts/full-stack/load-test.mjs
+      - name: Stop owned stack
         if: always()
         run: node scripts/full-stack/local-stack.mjs --stop
