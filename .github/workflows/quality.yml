@@ -1,9 +1,18 @@
 name: Platform quality
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      full_supabase:
+        description: Run the isolated full Supabase Docker proof without production credentials
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   verify:
+    if: github.ref != 'refs/heads/codex/full-stack-verification' && (github.event_name != 'workflow_dispatch' || !inputs.full_supabase)
     runs-on: ubuntu-latest
     env:
       VITE_APP_ENVIRONMENT: fixtures
@@ -34,3 +43,27 @@ jobs:
         with:
           name: interface-verification
           path: test-results.local
+  local-supabase-proof:
+    if: github.event_name == 'workflow_dispatch' && inputs.full_supabase && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SUPABASE_TELEMETRY_DISABLED: '1'
+      DO_NOT_TRACK: '1'
+      BROWSER_CHANNEL: chromium
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npx --no-install playwright-core install --with-deps chromium
+      - name: Start dedicated loopback-bound Supabase containers
+        run: node scripts/full-stack/local-stack.mjs --start
+      - name: Verify actual Auth, Storage, PostgREST and application workflows
+        run: node scripts/full-stack/verify.mjs
+      - name: Stop only the dedicated test stack, preserving its volumes
+        if: always()
+        run: node scripts/full-stack/local-stack.mjs --stop

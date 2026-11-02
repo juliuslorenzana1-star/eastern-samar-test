@@ -44,6 +44,7 @@
   "git": {
     "deploymentEnabled": {
       "main": false,
+      "codex/full-stack-verification": false,
       "codex/anonymous-reporting": false,
       "codex/website-improvements-2026-11-01": false,
       "codex/final-ui-readiness": false
