@@ -38,6 +38,7 @@
   ],
   "git": {
     "deploymentEnabled": {
+      "main": false,
       "codex/website-improvements-2026-11-01": false,
       "codex/final-ui-readiness": false
     }
