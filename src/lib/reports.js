@@ -82,7 +82,8 @@ export async function validateEvidenceFile(file) {
 export async function fetchPublicReports({ offset = 0 } = {}) {
   if (!supabase) return [];
   const { data, error } = await supabase
-    .from(visitorReportingEnabled ? 'public_report_feed' : 'reports')
+    // The privacy-safe read projection can be enabled before public submission.
+    .from(visitorReportingEnabled || import.meta.env?.VITE_USE_PUBLIC_REPORT_FEED === 'true' ? 'public_report_feed' : 'reports')
     .select(reportColumns)
     .eq('is_public', true)
     .in('status', publicReportStatuses)

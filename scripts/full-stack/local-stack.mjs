@@ -38,7 +38,9 @@ export async function prepare(){
     if(!regex.test(body))throw Error(`Missing CLI configuration option ${section}.${key}`);
     config=config.slice(0,start)+body.replace(regex,`${key} = ${value}`)+config.slice(stop);
   };
-  set('auth','enable_signup','false');set('auth.email','enable_signup','false');
+  // The global switch closes registration. Disabling the email provider too
+  // also prevents designated password logins on the actual local GoTrue stack.
+  set('auth','enable_signup','false');set('auth.email','enable_signup','true');
   set('auth','enable_anonymous_sign_ins','false');set('db.seed','enabled','false');
   set('analytics','enabled','false');set('edge_runtime','enabled','false');set('storage.vector','enabled','false');
   await writeFile(configFile,config);

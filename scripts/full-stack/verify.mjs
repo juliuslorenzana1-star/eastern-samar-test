@@ -7,8 +7,8 @@ import {createClient} from '@supabase/supabase-js';
 import {createServer as createViteServer} from 'vite';
 import {chromium} from 'playwright-core';
 import sharp from 'sharp';
-import {writeFile,mkdir} from 'node:fs/promises';
-import {credentials,sql,safeOutput} from './local-stack.mjs';
+import {writeFile,mkdir,readFile} from 'node:fs/promises';
+import {credentials,sql} from './local-stack.mjs';
 import anonymous from '../../api/anonymous.js';
 
 const settings=credentials(),base='http://127.0.0.1:5196',checks=[];
@@ -116,6 +116,16 @@ try{
   const publicPage=await pageFor(390);await publicPage.goto(base);await publicPage.locator('.report-title').filter({hasText:`Browser Docker concern 320 ${runId}`}).first().waitFor({state:'attached'});
   assert.equal((await post('track',{trackingCredential:browserReports[0].credential})).body.report.status,'verified');
   passed('actual browser moderator password login, persisted verification and anonymous public map publication');
+  const preflight=JSON.parse(sql(await readFile(new URL('../../supabase/verification/anonymous-release-preflight.sql',import.meta.url),'utf8')));
+  assert.equal(preflight.visitor_installed,true);assert.equal(preflight.moderation_anon_execute,false);assert.deepEqual(preflight.public_rls_disabled,[]);
+  const recordsBefore=Number(sql('select count(*) from public.reports'));
+  sql(await readFile(new URL('../../supabase/proposed/pause_visitor_ingress.sql',import.meta.url),'utf8'));
+  const pauseArgs={payload:{...sample,title:'Fictional paused concern'},tracking_hash:sha('isolated-paused-attempt'),source_hash:sha('isolated-paused-source'),payload_hash:sha('isolated-paused-body'),has_photo:false};
+  assert.ok((await admin.rpc('submit_visitor_report',pauseArgs)).error);
+  assert.equal((await post('track',{trackingCredential:secret})).status,200);
+  assert.equal(Number(sql('select count(*) from public.reports')),recordsBefore);
+  sql("grant execute on function public.submit_visitor_report(jsonb,text,text,text,boolean),public.finalize_visitor_photo(uuid,text) to service_role;notify pgrst,'reload schema';");
+  passed('read-only release preflight and reversible visitor write pause preserve records, tracking and moderator access');
   assert.equal(unexpectedFunctions,0);
   const result={environment:'ephemeral full Supabase Docker stack',hostedSupabase:false,productionTouched:false,auth:true,postgrest:true,storageAPI:true,realImageBytes:true,realBrowser:true,checks,aiOrEmailFunctionsCalled:false};
   await mkdir('test-results.local/full-stack',{recursive:true});await writeFile('test-results.local/full-stack/results.json',JSON.stringify(result,null,2));
