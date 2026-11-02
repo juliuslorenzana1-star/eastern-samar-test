@@ -1,5 +1,7 @@
 # Full Supabase integration proof and production handoff
 
+**Status update:** Approved hosted migrations, protected hosted verification and cleanup are now complete. See [HOSTED_REPORTING_VERIFICATION.md](HOSTED_REPORTING_VERIFICATION.md). Production-status statements below describe the earlier isolated-test handoff, not the current deployment. Public reporting remains disabled.
+
 2 November 2026. **Full containerized integration passed. Production migration and public activation have not been performed.**
 
 ## Testing limitation resolved
