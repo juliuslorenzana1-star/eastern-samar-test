@@ -1,5 +1,7 @@
 # Privacy decision record — 1 November 2026
 
+**2 November testing update:** the full Supabase Docker proof now passes on a standard public GitHub runner, including real Auth, Storage, moderation and browser publication. A second hosted project is no longer required for this integration proof. See [FULL_STACK_RELEASE_RESULT.md](FULL_STACK_RELEASE_RESULT.md). Controller/contact/final policy decisions and authorized production-specific checks remain separate; none is marked completed by these tests.
+
 **Public release blocked. Restricted fictional demonstration only.**
 
 Internal provisional designation, supplied by the developer: **Julius Lorenzana — Independent Project Developer**. This is not confirmation of the legally responsible personal information controller, an organization, or a government affiliation.

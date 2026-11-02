@@ -1,5 +1,7 @@
 # Anonymous reporting implementation and public-release readiness
 
+**Latest verification update:** full real Supabase containerized Auth/Storage/PostgREST and browser tests now pass without a second hosted project. The safe alternative and production handoff are recorded in [FULL_STACK_RELEASE_RESULT.md](FULL_STACK_RELEASE_RESULT.md). The initial application code was subsequently deployed with collection disabled; production migrations and activation remain pending. The earlier local-only testing limitations below are historical and superseded by that report, except for the explicitly outstanding managed-provider checks.
+
 2 November 2026. Implemented locally; **not deployed and not approved for public activation**. This supersedes the earlier implementation proposal. No production DDL, writes, Auth changes, bucket changes or billing changes were made.
 
 ## Delivered behavior

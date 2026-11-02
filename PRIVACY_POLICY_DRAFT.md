@@ -16,7 +16,7 @@ Anonymous reporting must be the default, without account registration or require
 
 Anonymous does not mean technically untraceable: hosting, security and network systems may process IP addresses, request metadata and other potentially identifying logs. Do not promise that these logs do not exist. Inventory actual providers, log access and retention before finalizing the public notice.
 
-Implementation status: account-free visitor submission, optional confidential contact, private tracking and moderation integration are implemented and tested locally. They are not deployed or activated. Hosted Supabase Auth/Storage rehearsal remains blocked by the unavailable staging project. No hidden Auth registration is used; see ANONYMOUS_REPORTING_IMPLEMENTATION.md.
+Implementation status: account-free visitor submission, optional confidential contact, private tracking and moderation integration are implemented. The initial application code is deployed with collection disabled and the production migration unapplied. Full real Supabase Auth/Storage/PostgREST and browser tests now pass in a dedicated ephemeral Docker stack on a standard public GitHub runner, without needing another hosted project. Managed-project checks still require approved private production smoke testing. No hidden Auth registration is used; see FULL_STACK_RELEASE_RESULT.md.
 
 ## Purposes and visibility
 
@@ -32,7 +32,7 @@ Existing accounts, volunteer registration and optional public aliases are separa
 | --- | --- |
 | Citizen reports | Two years after resolution or closure, then delete or anonymize personal information. Non-identifying historical statistics may remain. |
 | Uploaded photos | Up to two years after report closure; delete earlier where privacy or safety requires it. |
-| User accounts | While active. Target processing verified deletion requests within 30 days, except justified lawful retention. |
+| User accounts | Until a verified deletion request, with a 30-day processing target subject to lawful retention exceptions and final review. No inactivity-deletion period is invented. |
 | Moderation records | Three years after case closure, subject to applicable legal requirements. |
 
 The 30-day account target is a proposed operational target, not a legal deadline or a guarantee that every associated record is deleted. The proposal does not authorize retaining everything for 30 days when earlier action is appropriate.
