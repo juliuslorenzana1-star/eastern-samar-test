@@ -15,7 +15,7 @@ const settings=credentials(),base='http://127.0.0.1:5196',checks=[];
 const client=key=>createClient(settings.url,key,{auth:{persistSession:false,autoRefreshToken:false}});
 const admin=client(settings.service),visitor=client(settings.anon);
 function passed(name){checks.push(name);console.log('PASS '+name);}
-async function data(result,label){const {data,error}=await result;if(error)throw Error(`${label}: ${error.code || error.status || ''} ${error.message}`);return data;}
+async function data(result,label){const {data,error}=await result;if(error){const failure=Error(label);failure.stage=label;failure.providerCode=error.code || error.status;failure.detail=error.message;throw failure;}return data;}
 const sha=value=>createHash('sha256').update(value).digest('hex');
 const runId=Date.now();
 Object.assign(process.env,{ANON_ENVIRONMENT:'isolated',ANON_REPORTING_ENABLED:'true',ANON_ALLOWED_ORIGIN:base,ANON_SOURCE_HMAC_KEY:randomBytes(32).toString('hex'),SUPABASE_URL:settings.url,SUPABASE_SERVICE_ROLE_KEY:settings.service,VITE_APP_ENVIRONMENT:'staging',VITE_STAGING_PROJECT_REF:'local-docker-proof',VITE_SUPABASE_URL:settings.url,VITE_SUPABASE_PUBLISHABLE_KEY:settings.anon,VITE_ENABLE_ANONYMOUS_REPORTING:'true',VITE_ENABLE_PERSONAL_DATA_COLLECTION:'true',VITE_ENABLE_AI_SCREENING:'false',VITE_ENABLE_EMAIL_NOTIFICATIONS:'false'});
@@ -120,5 +120,10 @@ try{
   const result={environment:'ephemeral full Supabase Docker stack',hostedSupabase:false,productionTouched:false,auth:true,postgrest:true,storageAPI:true,realImageBytes:true,realBrowser:true,checks,aiOrEmailFunctionsCalled:false};
   await mkdir('test-results.local/full-stack',{recursive:true});await writeFile('test-results.local/full-stack/results.json',JSON.stringify(result,null,2));
   console.log('FULL_STACK_RESULT '+JSON.stringify(result));
-}catch(error){console.error('FULL_STACK_FAILURE '+safeOutput(error.message));process.exitCode=1;}
+}catch(error){
+  let detail=String(error.detail || error.message);
+  for(const value of [settings.anon,settings.service,process.env.ANON_SOURCE_HMAC_KEY,...Object.values(users).map(user=>user.password)])if(value)detail=detail.replaceAll(value,'[redacted]');
+  detail=detail.replace(/[A-Za-z0-9_-]{32,}(?:\.[A-Za-z0-9_-]+)*/g,'[redacted]');
+  console.error('FULL_STACK_FAILURE '+JSON.stringify({stage:error.stage || 'assertion',code:error.providerCode,detail}));process.exitCode=1;
+}
 finally{for(const context of contexts)await context.close();await browser?.close();await vite.close();await new Promise(resolve=>api.close(resolve));}
