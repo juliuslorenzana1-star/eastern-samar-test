@@ -1,10 +1,13 @@
-// Owner-supplied proposal, 2 November 2026. Not release approval or a deletion job.
+// Owner confirmed operator, inbox delivery and retention on 2 November 2026.
+// This records owner attestation, not independent legal review or a deletion job.
 export const privacyPolicy = Object.freeze({
-  version: '2026-11-02-proposed',
+  version: '2026-11-02-owner-approved',
   operator: 'Julius Yexel A. Lorenzana',
-  operatorConfirmed: false,
+  operatorConfirmed: true,
   contact: 'juliuslorenzana1@gmail.com',
-  contactDeliveryVerified: false,
+  contactDeliveryVerified: true,
+  contactVerificationSource: 'owner_attestation',
+  retentionApproved: true,
   finalReviewApproved: false,
   reportYearsAfterClosure: 2,
   photoYearsAfterClosure: 2,

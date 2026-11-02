@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import { planRetention, privacyPolicy } from '../src/lib/privacy-policy.js';
 const now = Date.parse('2026-11-02T00:00:00Z');
 const closed = { id: 'fictional', category: 'report', status: 'resolved', closedAt: '2024-11-02T00:00:00Z', hold: false };
-test('proposed policy cannot authorize release or destructive execution', () => {
+test('owner attestation does not claim legal review or authorize destructive execution', () => {
   assert.equal(privacyPolicy.finalReviewApproved, false);
-  assert.equal(privacyPolicy.operatorConfirmed, false);
-  assert.equal(privacyPolicy.contactDeliveryVerified, false);
+  assert.equal(privacyPolicy.operatorConfirmed, true);
+  assert.equal(privacyPolicy.contactDeliveryVerified, true);
+  assert.equal(privacyPolicy.contactVerificationSource, 'owner_attestation');
+  assert.equal(privacyPolicy.retentionApproved, true);
   assert.equal(planRetention(closed, now).executable, false);
 });
 test('closure-based anniversaries differ for reports/photos and moderation', () => {
