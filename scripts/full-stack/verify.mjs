@@ -81,6 +81,9 @@ try{
   for(const next_status of ['under_review','approved','verified','in_progress','resolved'])await data(users.moderator.client.rpc('moderate_report',{...args,next_status,next_priority:'high'}),'moderation transition');
   const progress=await post('track',{trackingCredential:secret});assert.equal(progress.body.report.status,'resolved');assert.equal(progress.body.report.priority,'high');assert.ok(!JSON.stringify(progress).includes('Private fictional note'));
   assert.equal((await data(visitor.from('public_report_feed').select('id').eq('id',id),'public feed')).length,1);
+  const totals=await data(visitor.rpc('platform_statistics'),'public statistics contract');assert.equal(totals[0].pending_reports,null);
+  const timeline=await data(visitor.rpc('report_progress',{target_report_id:id}),'public timeline contract');
+  assert.ok(timeline.length>0);assert.ok(timeline.every(event=>!('actor_id' in event) && !('note' in event) && !['pending_review','under_review'].includes(event.status)));
   assert.equal((await data(users.observer.client.from('reports').select('reporter_id').eq('id',id),'private owner identity')).length,0);
   sql(`update profiles set role='resident' where id='${users.moderator.id}'`);assert.ok((await users.moderator.client.rpc('moderate_report',args)).error);sql(`update profiles set role='moderator' where id='${users.moderator.id}'`);
   await data(users.moderator.client.rpc('moderate_report',{...args,target_report_id:identified.body.id,next_status:'rejected',resident_note:'Fictional rejection reason'}),'reject concern');
@@ -126,6 +129,9 @@ try{
   assert.equal(Number(sql('select count(*) from public.reports')),recordsBefore);
   sql("grant execute on function public.submit_visitor_report(jsonb,text,text,text,boolean),public.finalize_visitor_photo(uuid,text) to service_role;notify pgrst,'reload schema';");
   passed('read-only release preflight and reversible visitor write pause preserve records, tracking and moderator access');
+  const claims=await Promise.all(Array.from({length:12},()=>data(admin.rpc('claim_visitor_attempt',{source:sha('isolated-concurrent-source'),operation:'submit'}),'concurrent attempt claim')));
+  assert.equal(claims.filter(Boolean).length,5);
+  passed('concurrent real PostgREST transactions cannot exceed the source request quota');
   assert.equal(unexpectedFunctions,0);
   const result={environment:'ephemeral full Supabase Docker stack',hostedSupabase:false,productionTouched:false,auth:true,postgrest:true,storageAPI:true,realImageBytes:true,realBrowser:true,checks,aiOrEmailFunctionsCalled:false};
   await mkdir('test-results.local/full-stack',{recursive:true});await writeFile('test-results.local/full-stack/results.json',JSON.stringify(result,null,2));

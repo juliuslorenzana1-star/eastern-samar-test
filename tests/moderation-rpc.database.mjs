@@ -8,7 +8,7 @@ test('narrow moderation repair upgrades the live legacy contract with authorizat
  const db=new PGlite();try{
   await bootstrapDatabase(db);
   const dir=new URL('../supabase/migrations/',import.meta.url);
-  const names=(await readdir(dir)).filter(n=>n.endsWith('.sql')&&!/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair|anonymous_reporting_ingress/.test(n)).sort();
+  const names=(await readdir(dir)).filter(n=>n.endsWith('.sql')&&!/review_decision|ai_review_runs|leaderboard_and_email|platform_completion|community_recognition|moderate_report_contract_repair|anonymous_reporting_ingress|public_read_contracts/.test(n)).sort();
   for(const name of names)await db.exec(await readFile(new URL(name,dir),'utf8'));
   // The inspected live database has legacy table-wide SELECT grants.
   await db.exec('grant select on reports to anon,authenticated');
